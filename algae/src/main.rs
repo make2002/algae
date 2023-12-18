@@ -1,4 +1,4 @@
-use numerical_methods_playground::Array;
+use algae::Array;
 
 fn main() {
     let mat_1 = vec![vec![1, 2, 3], vec![1, 2, 2], vec![3, 2, 1]];

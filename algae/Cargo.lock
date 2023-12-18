@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "numerical_methods_playground"
+name = "algae"
 version = "0.1.0"
