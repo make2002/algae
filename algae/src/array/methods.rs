@@ -4,21 +4,26 @@ use std::ops::{Add, Sub, Neg, Mul, Div};
 use num::traits::{One, Zero};
 
 fn multiply_row<T: Copy + Clone + Mul<Output = T>>
-(a:&mut Array<T>, row:usize, factor:T) {
-    for col in 0..a.size.0 {
+(a:&mut Array<T>, row:usize, factor:T, pivot_col:usize) {
+    for col in pivot_col..a.size.0 {
         a[(row, col)] = a[(row, col)] * factor;
     }
 }
 
 fn multiply_add_row<T: Copy + Clone + Add<Output = T> + Mul<Output = T>>
-(a:&mut Array<T>, from_row:usize, to_row:usize, factor:T) {
-    for col in 0..a.size.0 {
+(a:&mut Array<T>, from_row:usize, to_row:usize, factor:T, pivot_col:usize) {
+    for col in pivot_col..a.size.0 {
         a[(to_row, col)] = a[(to_row, col)] + a[(from_row, col)] * factor;
     }
 }
 
+pub enum LinearSystemResult<T> {
+    Single(Array<T>),
+    Infinite(Vec<Array<T>>),
+}
+
 impl<T: Copy + Clone + Zero + One + PartialEq
- + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T>> 
+ + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T> + std::fmt::Display> 
 Array<T> {
     pub fn identity(size:usize) -> Self {
         let mut content = Vec::<Vec<T>>::with_capacity(size);
@@ -92,7 +97,7 @@ Array<T> {
                 }
             }
             let factor = T::one()/self[pivot];
-            multiply_row(self, pivot.0, factor);
+            multiply_row(self, pivot.0, factor, pivot.1);
             elementary_mat = Array::elementary_multiply(
                 elementary_mat.size.0,
                 pivot.0,
@@ -101,7 +106,7 @@ Array<T> {
             for row in (pivot.0 + 1)..self.size.1 {
                 if !T::is_zero(&self[(row, pivot.1)]) {
                     let factor = -self[(row, pivot.1)];
-                    multiply_add_row(self, pivot.0, row, factor);
+                    multiply_add_row(self, pivot.0, row, factor, pivot.1);
                     elementary_mat = Array::elementary_add_into(
                         elementary_mat.size.0,
                         pivot.0,
@@ -120,14 +125,24 @@ Array<T> {
         let mut elementary_mat = self.clone().echelon_form();
         *self = elementary_mat.clone() * self.clone();
         
-        let mut pivot = (self.size.1 - 1, self.size.0 - 1);
+        let mut pivot = (self.size.1 - 1, 0);
+        while pivot.0 >= 0 && self[pivot] == T::zero() {
+            pivot.1 += 1;
+            if pivot.1 >= self.size.0 {
+                if pivot.0 == 0 {
+                    break;
+                }
+                pivot.0 -= 1;
+                pivot.1 = 0;
+            } 
+        }
         while pivot.0 > 0 {
             while pivot.1 > 0 && self[(pivot.0, pivot.1 - 1)] != T::zero() {
                 pivot.1 -= 1;
             }
             for row in 0..pivot.0 {
                 let factor = -self[(row, pivot.1)];
-                multiply_add_row(self, pivot.0, row, factor);
+                multiply_add_row(self, pivot.0, row, factor, pivot.1);
                 elementary_mat = Array::elementary_add_into(
                     elementary_mat.size.0,
                     pivot.0,
@@ -172,17 +187,46 @@ Array<T> {
                 }
             }
             let factor = T::one() / a[pivot];
-            multiply_row(&mut a, pivot.0, factor);
+            multiply_row(&mut a, pivot.0, factor, pivot.1);
             det = det * factor;
             for row in (pivot.0 + 1)..a.size.1 {
                 if !T::is_zero(&a[(row, pivot.1)]) {
                     let factor = -a[(row, pivot.1)];
-                    multiply_add_row(&mut a, pivot.0, row, factor);
+                    multiply_add_row(&mut a, pivot.0, row, factor, pivot.1);
                 }
             }
             pivot.0 += 1;
             pivot.1 += 1;
         }
         det
+    }
+
+    pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
+        if a.size.1 != b.size.1 {
+            panic!("The height of the A matrix and the b vector must be equal.");
+        } 
+        let split_col = a.size.0;
+        let mut m = Array::concat_0_axis(a, b);
+        m.reduced_echelon_form();
+        let res = Array::split_0_axis(m, split_col);
+        if res.0[(res.0.size.0 - 1, res.0.size.1 - 1)] == T::zero() 
+            && res.1.content[res.0.size.0 - 1].iter().any(|t| *t != T::zero()) {
+            Err("There is no solutions for this system of equations.".to_string())
+        } else if res.0 == Array::identity(res.0.size.0) {
+            Ok(LinearSystemResult::Single(res.1))
+        } else {
+            Err("Dev".to_string())
+        }
+    }
+
+    pub fn inv(&self) -> Result<Array<T>, String> {
+        match Self::solve(self.clone(), Self::identity(self.size.0)) {
+            Ok(LinearSystemResult::Single(r)) => {
+                Ok(r)
+            },
+            _ => {
+                Err("Non-invertible matrix.".to_string())
+            },
+        }
     }
 }

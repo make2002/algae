@@ -16,6 +16,13 @@ pub mod array {
             }
         }
     }
+
+    impl<T: PartialEq> PartialEq for Array<T> {
+        fn eq(&self, other:&Self) -> bool {
+            self.size == other.size && self.content == other.content
+        }
+    }
+    impl<T: Eq> Eq for Array<T> {}
     
     impl<T: fmt::Display> fmt::Display for Array<T> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
