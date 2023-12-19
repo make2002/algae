@@ -16,4 +16,5 @@ fn main() {
     let mut mat_4 = Array::new_mat(mat_4);
     
     println!("{}", mat_2.determinant());
+    println!("{}", mat_2.size.0);
 }
