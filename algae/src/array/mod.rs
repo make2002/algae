@@ -1,5 +1,5 @@
 pub mod array {
-    use std::ops::{Index, IndexMut, Add, Sub, Neg, Mul, Div};
+    use std::ops::{Index, IndexMut, Add, Sub, Mul};
     use std::fmt;
 
     #[derive(Debug)]
@@ -137,6 +137,35 @@ pub mod array {
                 content,
                 size:(a.size.0, a.size.1 + b.size.1),
             }
+        }
+
+        pub fn split_0_axis(m:Self, col:usize) -> (Self, Self) {
+            let mut a = m.clone();
+            let b_size = (usize::saturating_sub(m.size.0, col), m.size.1);
+            a.size.0 = col;
+            let mut content = Vec::<Vec<T>>::with_capacity(m.size.1);
+            for row in 0..a.size.1 {
+                content.push(
+                    a.content[row].split_off(col)
+                );
+            }
+            let b = Array::<T> {
+                content,
+                size:b_size,
+            };
+            (a, b)
+        }
+
+        pub fn split_1_axis(m:Self, row:usize) -> (Self, Self) {
+            let mut a = m.clone();
+            let b_size = (m.size.0, usize::saturating_sub(m.size.1, row));
+            a.size.1 = row;
+            let content = a.content.split_off(row);
+            let b = Array::<T> {
+                content,
+                size:b_size,
+            };
+            (a, b)
         }
     }
 
