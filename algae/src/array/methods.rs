@@ -1,4 +1,3 @@
-
 use crate::Array;
 use std::ops::{Add, Sub, Neg, Mul, Div};
 use num::traits::{One, Zero};
@@ -19,7 +18,7 @@ fn multiply_add_row<T: Copy + Clone + Add<Output = T> + Mul<Output = T>>
 
 pub enum LinearSystemResult<T> {
     Single(Array<T>),
-    Infinite(Vec<Array<T>>),
+    Infinite((Array<T>, Array<T>)),
 }
 
 impl<T: Copy + Clone + Zero + One + PartialEq
@@ -206,16 +205,42 @@ Array<T> {
             panic!("The height of the A matrix and the b vector must be equal.");
         } 
         let split_col = a.size.0;
-        let mut m = Array::concat_0_axis(a, b);
+        let mut m = Array::concat_0_axis(a.clone(), b);
         m.reduced_echelon_form();
         let res = Array::split_0_axis(m, split_col);
-        if res.0[(res.0.size.0 - 1, res.0.size.1 - 1)] == T::zero() 
+        if res.0[(res.0.size.1 - 1, res.0.size.0 - 1)] == T::zero() 
             && res.1.content[res.0.size.0 - 1].iter().any(|t| *t != T::zero()) {
             Err("There is no solutions for this system of equations.".to_string())
         } else if res.0 == Array::identity(res.0.size.0) {
             Ok(LinearSystemResult::Single(res.1))
         } else {
-            Err("Dev".to_string())
+            let mut fixed = res.1.clone();
+            fixed.extend_to((fixed.size.0, a.size.0), T::zero());
+            let mut free_variables:Option<Array<T>> = None;
+            let mut pivot_row = 0;
+            for col_index in 0..res.0.size.0 {
+                if pivot_row >= res.0.size.1 || res.0[(pivot_row, col_index)] == T::zero() {
+                    let mut col = -res.0.get_col(col_index);
+                    col.extend_to((1, a.size.0), T::one());
+                    match free_variables {
+                        Some(arr) => {
+                            free_variables = Some(Array::concat_0_axis(arr, col));
+                        },
+                        None => free_variables = Some(col),
+                    }
+                } else {
+                    pivot_row += 1;
+                }
+            }
+            match free_variables {
+                Some(arr) => {
+                    // here fixed + any linear combination of the column vectors in arr will yield a result.
+                    Ok(LinearSystemResult::Infinite((fixed, arr)))
+                },
+                None => {
+                    Err("FAulty implementation".to_string())
+                }
+            }
         }
     }
 
@@ -230,3 +255,15 @@ Array<T> {
         }
     }
 }
+
+// x_1 + x_3 = b_1
+// x_2 + x_3 = b_2
+// 0 = b_3
+
+// x_1 = b_1 - x_3
+// x_2 = b_2 - x_3
+// x_3
+
+// x = (b_1 - x_3, b_2 - x_3) = (b_1, b_2) - (1, 1)t
+
+// So it's b minus any linear combination of free variables?

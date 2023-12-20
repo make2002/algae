@@ -1,5 +1,5 @@
 pub mod array {
-    use std::ops::{Index, IndexMut, Add, Sub, Mul};
+    use std::ops::{Index, IndexMut, Add, Sub, Neg, Mul};
     use std::fmt;
 
     #[derive(Debug)]
@@ -174,6 +174,25 @@ pub mod array {
             };
             (a, b)
         }
+
+        pub fn extend_to(&mut self, size:(usize, usize), value:T) {
+            if size.0 < self.size.0 || size.1 < self.size.1 {
+                panic!("You can't extend an array to a smaller size.");
+            }
+            let add_vec = vec![value; size.0 - self.size.0];
+            for row_index in 0..self.size.1 {
+                self.content[row_index].append(&mut add_vec.clone());  
+            }
+            let add_row = vec![value; size.0];
+            while self.content.len() < size.1 {
+                self.content.push(add_row.clone());
+            }
+            self.size = size;
+        }
+    
+        pub fn extend_by(&mut self, size:(usize, usize), value:T) {
+            self.extend_to((self.size.0 + size.0, self.size.1 + size.1), value);
+        }
     }
 
     impl<T: Copy + Clone> Index<(usize, usize)> for Array<T> {
@@ -181,9 +200,9 @@ pub mod array {
 
         fn index(&self, i:(usize, usize)) -> &Self::Output {
             if i.0 >= self.size.1 {
-                panic!("Index out of bounds: the width is {} but the index is {}", self.size.0, i.0);
+                panic!("Index out of bounds: the height is {} but the index is {}", self.size.1, i.0);
             } else if i.1 >= self.size.0 {
-                panic!("Index out of bounds: the height is {} but the index is {}", self.size.1, i.1);
+                panic!("Index out of bounds: the width is {} but the index is {}", self.size.0, i.1);
             }
             &self.content[i.0][i.1]
         }
@@ -192,9 +211,9 @@ pub mod array {
     impl<T: Copy + Clone> IndexMut<(usize, usize)> for Array<T> {
         fn index_mut(&mut self, i:(usize, usize)) -> &mut Self::Output {
             if i.0 >= self.size.1 {
-                panic!("Index out of bounds: the width is {} but the index is {}", self.size.0, i.0);
+                panic!("Index out of bounds: the height is {} but the index is {}", self.size.1, i.0);
             } else if i.1 >= self.size.0 {
-                panic!("Index out of bounds: the height is {} but the index is {}", self.size.1, i.1);
+                panic!("Index out of bounds: the width is {} but the index is {}", self.size.0, i.1);
             }
             &mut self.content[i.0][i.1]
         }
@@ -232,6 +251,24 @@ pub mod array {
             let mut temp = Vec::<T>::with_capacity(self.size.0);
                 for col in 0..self.size.0 {
                     temp.push(self.content[row][col] - other.content[row][col]);
+                }
+                content.push(temp);
+            } 
+            Array {
+                content,
+                size:self.size,
+            }
+        }
+    }
+
+    impl<T: Copy + Clone + Neg<Output = T>> Neg for Array<T> {
+        type Output = Array<T>;
+        fn neg(self) -> Self {
+            let mut content = Vec::<Vec<T>>::with_capacity(self.size.1);
+            for row in 0..self.size.1 {
+            let mut temp = Vec::<T>::with_capacity(self.size.0);
+                for col in 0..self.size.0 {
+                    temp.push(-self.content[row][col]);
                 }
                 content.push(temp);
             } 
