@@ -2,14 +2,14 @@ use crate::Array;
 use std::ops::{Add, Sub, Neg, Mul, Div};
 use num::traits::{One, Zero};
 
-fn multiply_row<T: Copy + Clone + Mul<Output = T>>
+pub(in crate::array) fn multiply_row<T: Copy + Clone + Mul<Output = T>>
 (a:&mut Array<T>, row:usize, factor:T, pivot_col:usize) {
     for col in pivot_col..a.size.0 {
         a[(row, col)] = a[(row, col)] * factor;
     }
 }
 
-fn multiply_add_row<T: Copy + Clone + Add<Output = T> + Mul<Output = T>>
+pub(in crate::array) fn multiply_add_row<T: Copy + Clone + Add<Output = T> + Mul<Output = T>>
 (a:&mut Array<T>, from_row:usize, to_row:usize, factor:T, pivot_col:usize) {
     for col in pivot_col..a.size.0 {
         a[(to_row, col)] = a[(to_row, col)] + a[(from_row, col)] * factor;
@@ -22,7 +22,7 @@ pub enum LinearSystemResult<T> {
 }
 
 impl<T: Copy + Clone + Zero + One + PartialEq
- + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T> + std::fmt::Display> 
+ + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T>> 
 Array<T> {
     pub fn identity(size:usize) -> Self {
         let mut content = Vec::<Vec<T>>::with_capacity(size);
@@ -120,10 +120,8 @@ Array<T> {
         elementary_mat
     }
 
-    pub fn reduced_echelon_form(&mut self) -> Self {
-        let mut elementary_mat = self.clone().echelon_form();
-        *self = elementary_mat.clone() * self.clone();
-        
+    pub(in crate::array) fn echelon_form_to_reduced_echelon_form(&mut self) -> Self {
+        let mut elementary_mat = Array::identity(self.size.1);
         let mut pivot = (self.size.1 - 1, 0);
         while pivot.0 >= 0 && self[pivot] == T::zero() {
             pivot.1 += 1;
@@ -152,6 +150,12 @@ Array<T> {
             pivot.0 -= 1;
         }
         elementary_mat
+    }
+
+    pub fn reduced_echelon_form(&mut self) -> Self {
+        let mut elementary_mat_1 = self.echelon_form();
+        let mut elementary_mat_2 = self.echelon_form_to_reduced_echelon_form();
+        elementary_mat_2 * elementary_mat_1
     }
 
     pub fn determinant(&self) -> T {
@@ -255,15 +259,3 @@ Array<T> {
         }
     }
 }
-
-// x_1 + x_3 = b_1
-// x_2 + x_3 = b_2
-// 0 = b_3
-
-// x_1 = b_1 - x_3
-// x_2 = b_2 - x_3
-// x_3
-
-// x = (b_1 - x_3, b_2 - x_3) = (b_1, b_2) - (1, 1)t
-
-// So it's b minus any linear combination of free variables?

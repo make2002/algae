@@ -28,21 +28,21 @@ pub mod array {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let mut s = String::with_capacity((3 * (self.size.0 + 1) * self.size.1) /* Comma seperated numbers */
             + 2 * (self.size.1 + 1) /* Brackets */ );
-        s.push('[');
-        for row in 0..self.size.1 {
             s.push('[');
-            for col in 0..(self.size.0 - 1) {
-                s.push_str(&self.content[row][col].to_string());
-                s.push_str(", ");
+            for row in 0..self.size.1 {
+                s.push('[');
+                for col in 0..(self.size.0 - 1) {
+                    s.push_str(&self.content[row][col].to_string());
+                    s.push_str(", ");
+                }
+                s.push_str(&self.content[row][self.size.0 - 1].to_string());
+                s.push(']');
+                if row != (self.size.1 - 1) {
+                    s.push_str(", ")
+                }
             }
-            s.push_str(&self.content[row][self.size.0 - 1].to_string());
             s.push(']');
-            if row != (self.size.1 - 1) {
-                s.push_str(", ")
-            }
-        }
-        s.push(']');
-        write!(f, "{}", s)
+            write!(f, "{}", s)
         }
     }
 
@@ -80,6 +80,18 @@ pub mod array {
             Array {
                 content,
                 size:(width, height),
+            }
+        }
+
+        pub fn new_filled(size:(usize, usize), value:T) -> Self{
+            let row = vec![value; size.0];
+            let mut content = Vec::<Vec<T>>::with_capacity(size.1);
+            while content.len() < size.1 {
+                content.push(row.clone());
+            }
+            Array {
+                content,
+                size,
             }
         }
 
@@ -321,3 +333,4 @@ pub mod array {
 }
 
 pub mod methods;
+pub mod factorizations;
