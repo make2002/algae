@@ -97,6 +97,7 @@ Array<T> {
             }
             let factor = T::one()/self[pivot];
             multiply_row(self, pivot.0, factor, pivot.1);
+            self[pivot] = T::one();
             elementary_mat = Array::elementary_multiply(
                 elementary_mat.size.0,
                 pivot.0,
@@ -188,6 +189,7 @@ Array<T> {
             }
             let factor = T::one()/self[pivot];
             multiply_row(self, pivot.0, factor, pivot.1);
+            self[pivot] = T::one();
             for row in (pivot.0 + 1)..self.size.1 {
                 if !T::is_zero(&self[(row, pivot.1)]) {
                     let factor = -self[(row, pivot.1)];
@@ -259,9 +261,9 @@ Array<T> {
                     break;
                 }
             }
+            det = det * a[pivot];
             let factor = T::one() / a[pivot];
             multiply_row(&mut a, pivot.0, factor, pivot.1);
-            det = det * factor;
             for row in (pivot.0 + 1)..a.size.1 {
                 if !T::is_zero(&a[(row, pivot.1)]) {
                     let factor = -a[(row, pivot.1)];
@@ -276,10 +278,6 @@ Array<T> {
 
     pub(in crate::array) fn extract_solution_from_matrix(res:(Array<T>, Array<T>), a:Array<T>)
     -> Result<LinearSystemResult<T>, String> {
-        /* if res.0[(res.0.size.1 - 1, res.0.size.0 - 1)] != T::zero() 
-            && res.1.content[res.0.size.0 - 1].iter().any(|t| *t == T::zero()) {
-            Err("There is no solutions for this system of equations.".to_string())
-        } else */
         if res.0 == Array::identity(res.0.size.0) {
             Ok(LinearSystemResult::Single(res.1))
         } else {
@@ -323,7 +321,7 @@ Array<T> {
                     Ok(LinearSystemResult::Infinite((fixed, arr)))
                 },
                 None => {
-                    Err("Faulty implementation".to_string())
+                    panic!("Faulty implementation");
                 }
             }
         }        
@@ -348,6 +346,71 @@ Array<T> {
             _ => {
                 Err("Non-invertible matrix.".to_string())
             },
+        }
+    }
+
+    pub fn rank(&self) -> usize {
+        let mut a = self.clone();
+        a.echelon_form();
+        let mut pivot = (a.size.1 - 1, 0);
+        while pivot.0 >= 0 && a[pivot] == T::zero() {
+            pivot.1 += 1;
+            if pivot.1 >= a.size.0 {
+                if pivot.0 == 0 {
+                    break;
+                }
+                if pivot.0 == 0 {
+                    return 0;
+                }
+                pivot.0 -= 1;
+                pivot.1 = 0;
+            } 
+        }
+        pivot.0 + 1
+    }
+
+    pub fn leontief_input_output_model(consumption:Array<T>, demand:Array<T>) 
+    -> Result<LinearSystemResult<T>, String> {
+        if consumption.size.0 != consumption.size.1 {
+            panic!("A consumption matrix must be square.");
+        }
+        if demand.size.0 != 1 {
+            panic!("Demand is a vector");
+        }
+        if demand.size.1 != consumption.size.1 {
+            panic!("The demand vector must be as long as the consumption matrix is high.");
+        }
+        let a = Array::identity(consumption.size.0) - consumption;
+        Array::solve(a, demand) 
+    }
+
+    fn replace_col(mut a:Array<T>, col_index:usize, col:Array<T>) -> Array<T> {
+        for row_index in 0..a.size.1 {
+            a[(row_index, col_index)] = col[(row_index, 0)];
+        }
+        a
+    }
+
+    pub fn cramers_rule(a:Array<T>, b:Array<T>) -> Array<T> {
+        if a.size.1 != b.size.1 {
+            panic!("a must be as tall as b");
+        }
+        if b.size.0 != 1 {
+            panic!("b must be a vector");
+        }
+        let mut content = Vec::<Vec<T>>::with_capacity(b.size.1);
+        let det_a = a.determinant();
+        if det_a == T::zero() {
+            panic!("Cramers rule doesn't apply, when det(a) == 0");
+        }
+        for i in 0..b.size.1 {
+            content.push(vec![
+                Self::replace_col(a.clone(), i, b.clone()).determinant() / det_a
+            ]);
+        }
+        Array {
+            content,
+            size:b.size,
         }
     }
 }

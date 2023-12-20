@@ -8,22 +8,17 @@ use crate::array::methods::LinearSystemResult;
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "full");
-    let mat_1 = vec![vec![1.0, 2.0, 3.0], vec![1.0, 3.0, 2.0], vec![3.0, 9.0, 6.0], vec![3.0, 9.0, 8.0]];
-    let mat_2 = vec![vec![4.0], vec![6.0], vec![12.0], vec![12.0]];
+    let consumption = Array::new_mat(
+        vec![
+            vec![3.0, -2.0,], 
+            vec![-5.0, 4.0,]
+            ]
+        );
+    let demand = Array::new_vec(
+        vec![6.0, 8.0]
+    );
 
-    let mut mat_1 = Array::new_mat(mat_1);
-    let mut mat_2 = Array::new_mat(mat_2);
-    
-    if let Ok(lu) = LuFactorization::new(mat_1) {
-        match lu.solve(mat_2) {
-            LuResult::Single(s) => {
-                println!("{}", s);
-            },
-            LuResult::Infinite((fixed, free)) => {
-                println!("{}; {}", fixed, free);
-            },
-        }
-    } else {
-        println!("Shit");
-    }
+    let res = Array::cramers_rule(consumption.clone(), demand);
+    println!("{}", res);
+    println!("{}", consumption * res);
 }
