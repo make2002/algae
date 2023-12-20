@@ -61,7 +61,7 @@ Array<T> {
         ret
     }
 
-    pub fn echelon_form(&mut self) -> Self {
+    pub fn echelon_form_elemntary_mat(&mut self) -> Self {
         let mut pivot = (0, 0);
         let mut elementary_mat = Array::identity(self.size.1);
         while pivot.0 < self.size.1 && pivot.1 < self.size.0 {
@@ -120,7 +120,7 @@ Array<T> {
         elementary_mat
     }
 
-    pub(in crate::array) fn echelon_form_to_reduced_echelon_form(&mut self) -> Self {
+    pub(in crate::array) fn echelon_form_to_reduced_echelon_form_elemntary_mat(&mut self) -> Self {
         let mut elementary_mat = Array::identity(self.size.1);
         let mut pivot = (self.size.1 - 1, 0);
         while pivot.0 >= 0 && self[pivot] == T::zero() {
@@ -152,10 +152,80 @@ Array<T> {
         elementary_mat
     }
 
-    pub fn reduced_echelon_form(&mut self) -> Self {
-        let mut elementary_mat_1 = self.echelon_form();
-        let mut elementary_mat_2 = self.echelon_form_to_reduced_echelon_form();
+    pub fn reduced_echelon_form_elemntary_mat(&mut self) -> Self {
+        let mut elementary_mat_1 = self.echelon_form_elemntary_mat();
+        let mut elementary_mat_2 = self.echelon_form_to_reduced_echelon_form_elemntary_mat();
         elementary_mat_2 * elementary_mat_1
+    }
+
+    pub fn echelon_form(&mut self) {
+        let mut pivot = (0, 0);
+        while pivot.0 < self.size.1 && pivot.1 < self.size.0 {
+            // Ensure pivot position != 0
+            loop {
+                let mut temp = Vec::<Vec<T>>::with_capacity(self.size.1);
+                while pivot.0 < self.content.len() && T::is_zero(&self[pivot]) {
+                    temp.push(self.content.swap_remove(pivot.0));
+                }
+                if pivot.0 >= self.content.len() {
+                    pivot.1 += 1;
+                } 
+                temp = temp.clone().into_iter().rev().collect();
+                match temp.pop() {
+                    Some(t) => {
+                        temp.insert(0, t);
+    
+                        self.content.append(&mut temp);
+                    },
+                    None => {},
+                }
+                if pivot.1 >= self.size.0 {
+                    return;
+                }
+                if !T::is_zero(&self[pivot]) {
+                    break;
+                }
+            }
+            let factor = T::one()/self[pivot];
+            multiply_row(self, pivot.0, factor, pivot.1);
+            for row in (pivot.0 + 1)..self.size.1 {
+                if !T::is_zero(&self[(row, pivot.1)]) {
+                    let factor = -self[(row, pivot.1)];
+                    multiply_add_row(self, pivot.0, row, factor, pivot.1);
+                }
+            }
+            pivot.0 += 1;
+            pivot.1 += 1;
+        }
+    }
+
+    pub(in crate::array) fn echelon_form_to_reduced_echelon_form(&mut self) {
+        let mut pivot = (self.size.1 - 1, 0);
+        while pivot.0 >= 0 && self[pivot] == T::zero() {
+            pivot.1 += 1;
+            if pivot.1 >= self.size.0 {
+                if pivot.0 == 0 {
+                    break;
+                }
+                pivot.0 -= 1;
+                pivot.1 = 0;
+            } 
+        }
+        while pivot.0 > 0 {
+            while pivot.1 > 0 && self[(pivot.0, pivot.1 - 1)] != T::zero() {
+                pivot.1 -= 1;
+            }
+            for row in 0..pivot.0 {
+                let factor = -self[(row, pivot.1)];
+                multiply_add_row(self, pivot.0, row, factor, pivot.1);
+            }
+            pivot.0 -= 1;
+        }
+    }
+
+    pub fn reduced_echelon_form(&mut self) {
+        self.echelon_form();
+        self.echelon_form_to_reduced_echelon_form();
     }
 
     pub fn determinant(&self) -> T {
@@ -204,21 +274,32 @@ Array<T> {
         det
     }
 
-    pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
-        if a.size.1 != b.size.1 {
-            panic!("The height of the A matrix and the b vector must be equal.");
-        } 
-        let split_col = a.size.0;
-        let mut m = Array::concat_0_axis(a.clone(), b);
-        m.reduced_echelon_form();
-        let res = Array::split_0_axis(m, split_col);
-        if res.0[(res.0.size.1 - 1, res.0.size.0 - 1)] == T::zero() 
-            && res.1.content[res.0.size.0 - 1].iter().any(|t| *t != T::zero()) {
+    pub(in crate::array) fn extract_solution_from_matrix(res:(Array<T>, Array<T>), a:Array<T>)
+    -> Result<LinearSystemResult<T>, String> {
+        /* if res.0[(res.0.size.1 - 1, res.0.size.0 - 1)] != T::zero() 
+            && res.1.content[res.0.size.0 - 1].iter().any(|t| *t == T::zero()) {
             Err("There is no solutions for this system of equations.".to_string())
-        } else if res.0 == Array::identity(res.0.size.0) {
+        } else */
+        if res.0 == Array::identity(res.0.size.0) {
             Ok(LinearSystemResult::Single(res.1))
         } else {
             let mut fixed = res.1.clone();
+            // Find the last pivot position and determine, whether it is
+            let joint = Array::concat_0_axis(res.0.clone(), res.1.clone());
+            let mut pivot = (joint.size.1 - 1, 0);
+            while pivot.0 >= 0 && joint[pivot] == T::zero() {
+                pivot.1 += 1;
+                if pivot.1 >= joint.size.0 {
+                    if pivot.0 == 0 {
+                        break;
+                    }
+                    pivot.0 -= 1;
+                    pivot.1 = 0;
+                } 
+            }
+            if pivot.1 > res.0.size.0 {
+                return Err("No solution for this system of equations".to_string());
+            }
             fixed.extend_to((fixed.size.0, a.size.0), T::zero());
             let mut free_variables:Option<Array<T>> = None;
             let mut pivot_row = 0;
@@ -242,10 +323,21 @@ Array<T> {
                     Ok(LinearSystemResult::Infinite((fixed, arr)))
                 },
                 None => {
-                    Err("FAulty implementation".to_string())
+                    Err("Faulty implementation".to_string())
                 }
             }
-        }
+        }        
+    }
+
+    pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
+        if a.size.1 != b.size.1 {
+            panic!("The height of the A matrix and the b vector must be equal.");
+        } 
+        let split_col = a.size.0;
+        let mut m = Array::concat_0_axis(a.clone(), b);
+        m.reduced_echelon_form();
+        let res = Array::split_0_axis(m, split_col);
+        Self::extract_solution_from_matrix(res, a)
     }
 
     pub fn inv(&self) -> Result<Array<T>, String> {
