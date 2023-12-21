@@ -57,7 +57,7 @@ LuFactorization<T> {
         )
     }
 
-    fn solve_l(&self, y:Array<T>) -> (Array<T>, Array<T>) {
+    fn solve_l(&self, y:Array<T>) -> Array<T> {
         let mut temp = Array::concat_0_axis(self.u.clone(), y);        
         let mut pivot = (temp.size.1 - 1, 0);
         while pivot.0 >= 0 && temp[pivot] == T::zero() {
@@ -81,7 +81,7 @@ LuFactorization<T> {
             }
             pivot.0 -= 1;
         }
-        Array::split_0_axis(temp, self.u.size.0)
+        temp
     }
 
     pub fn solve(&self, b:Array<T>) -> LuResult<T> {

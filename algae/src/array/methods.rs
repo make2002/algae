@@ -276,6 +276,79 @@ Array<T> {
         det
     }
 
+    pub(in crate::array) fn extract_solution_from_matrix(res:Array<T>, a:Array<T>)
+    -> Result<LinearSystemResult<T>, String> {
+        let (mut mat, mut fixed) = Array::split_0_axis(res.clone(), a.size.0);
+        // Might need a check if the outer split is even possible
+        let mat = Array::split_1_axis(
+            mat.clone(),
+            a.size.0,
+        ).0;
+        let mut fixed = match Array::split_1_axis(
+            fixed.clone(),
+            a.size.0,
+        ) {
+            (i, j) if j == Array::new_filled(j.size, T::zero()) => {
+                i
+            },
+            _ => return Err("No solution for this system of equations".to_string()),
+        };
+        if mat == Array::identity(mat.size.0) {
+            Ok(LinearSystemResult::Single(fixed))
+        } else {
+            // Find the last pivot position and determine, whether it is
+            let mut pivot = (res.size.1 - 1, 0);
+            while pivot.0 >= 0 && res[pivot] == T::zero() {
+                pivot.1 += 1;
+                if pivot.1 >= res.size.0 {
+                    if pivot.0 == 0 {
+                        break;
+                    }
+                    pivot.0 -= 1;
+                    pivot.1 = 0;
+                } 
+            }
+            if pivot.1 > mat.size.0 {
+                return Err("No solution for this system of equations".to_string());
+            }
+            if a.size.0 < fixed.size.1 {
+                let temp = Array::split_1_axis(fixed.clone(), a.size.0);
+                if temp.1 != Array::new_filled(temp.1.size, T::zero()) {
+                    return Err("No solution for this system of equations".to_string());
+                }
+                fixed = temp.0;
+            } else {
+                fixed.extend_to((fixed.size.0, a.size.0), T::zero());
+            }
+            let mut free_variables:Option<Array<T>> = None;
+            let mut pivot_row = 0;
+            for col_index in 0..mat.size.0 {
+                if pivot_row >= mat.size.1 || mat[(pivot_row, col_index)] == T::zero() {
+                    let mut col = -mat.get_col(col_index);
+                    col.extend_to((1, a.size.0), T::one());
+                    match free_variables {
+                        Some(arr) => {
+                            free_variables = Some(Array::concat_0_axis(arr, col));
+                        },
+                        None => free_variables = Some(col),
+                    }
+                } else {
+                    pivot_row += 1;
+                }
+            }
+            match free_variables {
+                Some(arr) => {
+                    // here fixed + any linear combination of the column vectors in arr will yield a result.
+                    Ok(LinearSystemResult::Infinite((fixed, arr)))
+                },
+                None => {
+                    panic!("Faulty implementation");
+                }
+            }
+        }  
+    }
+
+    /*
     pub(in crate::array) fn extract_solution_from_matrix(res:(Array<T>, Array<T>), a:Array<T>)
     -> Result<LinearSystemResult<T>, String> {
         if res.0 == Array::identity(res.0.size.0) {
@@ -298,7 +371,15 @@ Array<T> {
             if pivot.1 > res.0.size.0 {
                 return Err("No solution for this system of equations".to_string());
             }
-            fixed.extend_to((fixed.size.0, a.size.0), T::zero());
+            if a.size.0 < fixed.size.1 {
+                let temp = Array::split_1_axis(fixed.clone(), a.size.0);
+                if temp.1 != Array::new_filled(temp.1.size, T::zero()) {
+                    return Err("No solution for this system of equations".to_string());
+                }
+                fixed = temp.0;
+            } else {
+                fixed.extend_to((fixed.size.0, a.size.0), T::zero());
+            }
             let mut free_variables:Option<Array<T>> = None;
             let mut pivot_row = 0;
             for col_index in 0..res.0.size.0 {
@@ -325,7 +406,7 @@ Array<T> {
                 }
             }
         }        
-    }
+    } */
 
     pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
         if a.size.1 != b.size.1 {
@@ -334,8 +415,7 @@ Array<T> {
         let split_col = a.size.0;
         let mut m = Array::concat_0_axis(a.clone(), b);
         m.reduced_echelon_form();
-        let res = Array::split_0_axis(m, split_col);
-        Self::extract_solution_from_matrix(res, a)
+        Self::extract_solution_from_matrix(m, a)
     }
 
     pub fn inv(&self) -> Result<Array<T>, String> {
@@ -411,6 +491,14 @@ Array<T> {
         Array {
             content,
             size:b.size,
+        }
+    }
+
+    pub fn null_space(&self) -> Array<T> {
+        match Array::solve(self.clone(), Array::new_filled((1, self.size.1), T::zero())) {
+            Ok(LinearSystemResult::Single(res)) => res,
+            Ok(LinearSystemResult::Infinite(res)) => res.1,
+            Err(e) => panic!("Faulty implementation: {}", e),
         }
     }
 }
