@@ -61,104 +61,6 @@ Array<T> {
         ret
     }
 
-    pub fn echelon_form_elemntary_mat(&mut self) -> Self {
-        let mut pivot = (0, 0);
-        let mut elementary_mat = Array::identity(self.size.1);
-        while pivot.0 < self.size.1 && pivot.1 < self.size.0 {
-            // Ensure pivot position != 0
-            loop {
-                let mut temp = Vec::<Vec<T>>::with_capacity(self.size.1);
-                while pivot.0 < self.content.len() && T::is_zero(&self[pivot]) {
-                    temp.push(self.content.swap_remove(pivot.0));
-                }
-                if pivot.0 >= self.content.len() {
-                    pivot.1 += 1;
-                } 
-                temp = temp.clone().into_iter().rev().collect();
-                match temp.pop() {
-                    Some(t) => {
-                        temp.insert(0, t);
-
-                        elementary_mat = Array::elementary_swap(
-                            elementary_mat.size.0, 
-                            (self.content.len(), pivot.0)
-                        ) * elementary_mat;
-    
-                        self.content.append(&mut temp);
-                    },
-                    None => {},
-                }
-                if pivot.1 >= self.size.0 {
-                    return elementary_mat;
-                }
-                if !T::is_zero(&self[pivot]) {
-                    break;
-                }
-            }
-            let factor = T::one()/self[pivot];
-            multiply_row(self, pivot.0, factor, pivot.1);
-            self[pivot] = T::one();
-            elementary_mat = Array::elementary_multiply(
-                elementary_mat.size.0,
-                pivot.0,
-                factor
-            ) * elementary_mat;
-            for row in (pivot.0 + 1)..self.size.1 {
-                if !T::is_zero(&self[(row, pivot.1)]) {
-                    let factor = -self[(row, pivot.1)];
-                    multiply_add_row(self, pivot.0, row, factor, pivot.1);
-                    elementary_mat = Array::elementary_add_into(
-                        elementary_mat.size.0,
-                        pivot.0,
-                        row,
-                        factor
-                    ) * elementary_mat;
-                }
-            }
-            pivot.0 += 1;
-            pivot.1 += 1;
-        }
-        elementary_mat
-    }
-
-    pub(in crate::array) fn echelon_form_to_reduced_echelon_form_elemntary_mat(&mut self) -> Self {
-        let mut elementary_mat = Array::identity(self.size.1);
-        let mut pivot = (self.size.1 - 1, 0);
-        while pivot.0 >= 0 && self[pivot] == T::zero() {
-            pivot.1 += 1;
-            if pivot.1 >= self.size.0 {
-                if pivot.0 == 0 {
-                    break;
-                }
-                pivot.0 -= 1;
-                pivot.1 = 0;
-            } 
-        }
-        while pivot.0 > 0 {
-            while pivot.1 > 0 && self[(pivot.0, pivot.1 - 1)] != T::zero() {
-                pivot.1 -= 1;
-            }
-            for row in 0..pivot.0 {
-                let factor = -self[(row, pivot.1)];
-                multiply_add_row(self, pivot.0, row, factor, pivot.1);
-                elementary_mat = Array::elementary_add_into(
-                    elementary_mat.size.0,
-                    pivot.0,
-                    row,
-                    factor
-                ) * elementary_mat;
-            }
-            pivot.0 -= 1;
-        }
-        elementary_mat
-    }
-
-    pub fn reduced_echelon_form_elemntary_mat(&mut self) -> Self {
-        let mut elementary_mat_1 = self.echelon_form_elemntary_mat();
-        let mut elementary_mat_2 = self.echelon_form_to_reduced_echelon_form_elemntary_mat();
-        elementary_mat_2 * elementary_mat_1
-    }
-
     pub fn echelon_form(&mut self) {
         let mut pivot = (0, 0);
         while pivot.0 < self.size.1 && pivot.1 < self.size.0 {
@@ -500,5 +402,208 @@ Array<T> {
             Ok(LinearSystemResult::Infinite(res)) => res.1,
             Err(e) => panic!("Faulty implementation: {}", e),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use crate::Array;
+    use crate::array::methods::multiply_row;
+    use crate::array::methods::multiply_add_row;
+
+    #[test]
+    fn test_multiply_row() {
+        let expected = Array {
+            content:vec![vec![2, 4], vec![1, 0]],
+            size:(2, 2),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![vec![1, 2], vec![1, 0]],
+                size:(2, 2),
+            };
+            multiply_row(&mut temp, 0, 2, 0);
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_multiply_add_row() {
+        let expected = Array {
+            content:vec![vec![1, 0], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![vec![1, 0], vec![2, 1]],
+                size:(2, 2),
+            };
+            multiply_add_row(&mut temp, 0, 1, -2, 0);
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn identity() {
+        let expected = Array {
+            content:vec![vec![1, 0], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = Array::identity(2);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn elementary_swap() {
+        let expected = Array {
+            content:vec![vec![1, 0, 0], vec![0, 0, 1], vec![0, 1, 0]],
+            size:(3, 3),
+        };
+        let actual = Array::elementary_swap(3, (1, 2));
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn elementary_multiply() {
+        let expected = Array {
+            content:vec![vec![1, 0, 0], vec![0, 3, 0], vec![0, 0, 1]],
+            size:(3, 3),
+        };
+        let actual = Array::elementary_multiply(3, 1, 3);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn elementary_add_into() {
+        let expected = Array {
+            content:vec![vec![1, 0, 0], vec![3, 1, 0], vec![0, 0, 1]],
+            size:(3, 3),
+        };
+        let actual = Array::elementary_add_into(3, 0, 1, 3);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn elementary_multiply_equivalency() {
+        let a = Array {
+            content:vec![vec![1, 0, 0], vec![0, 3, 0], vec![0, 0, 1]],
+            size:(3, 3),
+        };
+        let expected = {
+            let mut temp = a.clone(); 
+            multiply_row(&mut temp, 1, 3, 0);
+            temp
+        };
+        let actual = Array::elementary_multiply(3, 1, 3) * a;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn elementary_add_into_equivalency() {
+        let a = Array {
+            content:vec![vec![1, 0, 0], vec![0, 3, 0], vec![0, 0, 1]],
+            size:(3, 3),
+        };
+        let expected = {
+            let mut temp = a.clone(); 
+            multiply_add_row(&mut temp, 0, 1, 3, 0);
+            temp
+        };
+        let actual = Array::elementary_add_into(3, 0, 1, 3) * a;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn echelon_form() {
+        let expected = Array {
+            content:vec![vec![1.0, 2.0, 3.0], vec![0.0, 1.0, 6.0], vec![0.0, 0.0, 1.0]],
+            size:(3, 3),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![
+                    vec![1.0, 2.0, 3.0],
+                    vec![1.0, 3.0, 9.0],
+                    vec![2.0, 5.0, 11.0]
+                ],
+                size:(3, 3)
+            };
+            temp.echelon_form();
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn echelon_form_to_reduced_echelon_form() {
+        let expected = Array {
+            content:vec![vec![1.0, 0.0, 0.0], vec![0.0, 1.0, 0.0], vec![0.0, 0.0, 1.0]],
+            size:(3, 3),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![
+                    vec![1.0, 2.0, 3.0],
+                    vec![0.0, 1.0, 9.0],
+                    vec![0.0, 0.0, 1.0]
+                ],
+                size:(3, 3)
+            };
+            temp.echelon_form_to_reduced_echelon_form();
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn reduced_echelon_form() {
+        let expected = Array {
+            content:vec![vec![1.0, 0.0, 3.0], vec![0.0, 1.0, 0.0], vec![0.0, 0.0, 0.0]],
+            size:(3, 3),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![
+                    vec![1.0, 2.0, 3.0],
+                    vec![1.0, 1.0, 3.0],
+                    vec![3.0, 3.0, 9.0]
+                ],
+                size:(3, 3)
+            };
+            temp.reduced_echelon_form();
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn determinant_0() {
+        let expected = 0.0;
+        let actual = Array {
+            content:vec![
+                vec![1.0, 2.0, 3.0],
+                vec![1.0, 1.0, 3.0],
+                vec![3.0, 3.0, 9.0]
+            ],
+            size:(3, 3)
+        }.determinant();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn determinant() {
+        let expected = 1.0;
+        let actual = Array {
+            content:vec![
+                vec![ 3.0, 1.0, 0.0],
+                vec![ 9.0, 3.0, 1.0],
+                vec![19.0, 6.0, 2.0]
+            ],
+            size:(3, 3)
+        }.determinant();
+        // Arbitrary
+        assert!(f64::abs(expected - actual) < 0.000001);
     }
 }
