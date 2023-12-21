@@ -607,5 +607,7 @@ mod tests {
     }
 }
 
+pub mod float_eq;
 pub mod methods;
+pub mod field_methods;
 pub mod factorizations;

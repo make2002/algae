@@ -1,6 +1,7 @@
 use crate::Array;
 use crate::array::methods::multiply_add_row;
 use crate::array::methods::LinearSystemResult;
+use crate::array::float_eq::FloatEq;
 use std::fmt;
 use std::ops::{Add, Sub, Neg, Mul, Div};
 use num::traits::{One, Zero};
@@ -23,7 +24,7 @@ impl<T: fmt::Display> fmt::Display for LuFactorization<T> {
 }
 
 impl<T: Copy + Clone + Zero + One + PartialEq
-+ Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T> + std::fmt::Display>
++ Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T> + FloatEq + std::fmt::Display>
 LuFactorization<T> {
     pub fn new(mut a:Array<T>) -> Result<Self, String> {
         let mut pivot = (0, 0);
@@ -31,7 +32,7 @@ LuFactorization<T> {
         
         let mut pivot = (0, 0);
         while pivot.0 < a.size.1 && pivot.1 < a.size.0 {
-            if a[pivot] == T::zero() {
+            if a[pivot].float_eq(&T::zero()) {
                 return Err("There exists no LU factorization of this matrix".to_string())
             }
             let factor = T::one()/a[pivot];
@@ -60,7 +61,7 @@ LuFactorization<T> {
     fn solve_l(&self, y:Array<T>) -> Array<T> {
         let mut temp = Array::concat_0_axis(self.u.clone(), y);        
         let mut pivot = (temp.size.1 - 1, 0);
-        while pivot.0 >= 0 && temp[pivot] == T::zero() {
+        while pivot.0 >= 0 && temp[pivot].float_eq(&T::zero()) {
             pivot.1 += 1;
             if pivot.1 >= temp.size.0 {
                 if pivot.0 == 0 {
