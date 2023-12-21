@@ -115,7 +115,10 @@ pub mod array {
                 panic!("Index out of bounds: the height is {} but the index is {}", self.size.1, index);
             }
 
-            Array::<T>::new_vec(self.content[index].clone())
+            Array::<T> {
+                content:vec![self.content[index].clone()],
+                size:(self.content[index].len(), 1),
+            }
         }
 
         pub fn get_col(&self, index:usize) -> Array<T> {
@@ -329,6 +332,278 @@ pub mod array {
             }
             array
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::array::array::Array;
+
+    #[test]
+    fn new_mat() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![2, -1]],
+            size:(2, 2),
+        };
+        let actual = Array::new_mat(vec![vec![1, 2], vec![2, -1]]);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn new_vec() {
+        let expected = Array {
+            content:vec![vec![1], vec![2]],
+            size:(1, 2),
+        };
+        let actual = Array::new_vec(vec![1, 2]);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn new_filled() {
+        let expected = Array {
+            content:vec![vec![1, 1], vec![1, 1]],
+            size:(2, 2),
+        };
+        let actual = Array::new_filled((2, 2), 1);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn transpose() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = Array {
+            content:vec![vec![1, 0], vec![2, 1]],
+            size:(2, 2),
+        }.transpose();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_row() {
+        let expected = Array {
+            content:vec![vec![0, 1]],
+            size:(2, 1),
+        };
+        let actual = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        }.get_row(1);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_col() {
+        let expected = Array {
+            content:vec![vec![2], vec![1]],
+            size:(1, 2),
+        };
+        let actual = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        }.get_col(1);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn concat_0_axis() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = Array::concat_0_axis(Array {
+            content:vec![vec![1], vec![0]],
+            size:(1, 2),
+        }, Array {
+            content:vec![vec![2], vec![1]],
+            size:(1, 2),
+        });
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn concat_1_axis() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = Array::concat_1_axis(Array {
+            content:vec![vec![1, 2]],
+            size:(2, 1),
+        }, Array {
+            content:vec![vec![0, 1]],
+            size:(2, 1),
+        });
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn split_0_axis() {
+        let expected = (Array {
+            content:vec![vec![1], vec![0]],
+            size:(1, 2),
+        }, Array {
+            content:vec![vec![2], vec![1]],
+            size:(1, 2),
+        });
+        let actual = Array::split_0_axis(Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        }, 1);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn split_1_axis() {
+        let expected = (Array {
+            content:vec![vec![1, 2]],
+            size:(2, 1),
+        }, Array {
+            content:vec![vec![0, 1]],
+            size:(2, 1),
+        });
+        let actual = Array::split_1_axis(Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        }, 1);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn extend_to() {
+        let expected = Array {
+            content:vec![vec![1, 2, 0], vec![0, 1, 0], vec![0, 0, 0]],
+            size:(3, 3),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![vec![1, 2], vec![0, 1]],
+                size:(2, 2),
+            };
+            temp.extend_to((3, 3), 0);
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn extend_by() {
+        let expected = Array {
+            content:vec![vec![1, 2, 0], vec![0, 1, 0], vec![0, 0, 0]],
+            size:(3, 3),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![vec![1, 2], vec![0, 1]],
+                size:(2, 2),
+            };
+            temp.extend_by((1, 1), 0);
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn index() {
+        let expected = 0;
+        let actual = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        }[(1, 0)];
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn mut_index() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = {
+            let mut temp = Array {
+                content:vec![vec![1, 2], vec![1, 1]],
+                size:(2, 2),
+            };
+            temp[(1, 0)] = 0;
+            temp
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn add() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = Array {
+            content:vec![vec![1, 0], vec![-1, 1]],
+            size:(2, 2),
+        } + Array {
+            content:vec![vec![0, 2], vec![1, 0]],
+            size:(2, 2),
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn sub() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = Array {
+            content:vec![vec![1, 0], vec![-1, 1]],
+            size:(2, 2),
+        } - Array {
+            content:vec![vec![0, -2], vec![-1, 0]],
+            size:(2, 2),
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn neg() {
+        let expected = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        };
+        let actual = -Array {
+            content:vec![vec![-1, -2], vec![0, -1]],
+            size:(2, 2),
+        };
+        assert_eq!(expected, actual);
+    }
+
+    fn scaler_prod() {
+        let expected = Array {
+            content:vec![vec![2, 4], vec![0, 2]],
+            size:(2, 2),
+        };
+        let actual = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        } * 2;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn mat_mul() {
+        let expected = Array {
+            content:vec![vec![4, 3], vec![1, 0]],
+            size:(2, 2),
+        };
+        let actual = Array {
+            content:vec![vec![1, 2], vec![0, 1]],
+            size:(2, 2),
+        } * Array {
+            content:vec![vec![2, 3], vec![1, 0]],
+            size:(2, 2),
+        };
+        assert_eq!(expected, actual);
     }
 }
 
