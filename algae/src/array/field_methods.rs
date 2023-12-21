@@ -390,33 +390,4 @@ mod tests{
         };
         assert_eq!(expected, actual);
     }
-
-    #[test]
-    fn determinant_0() {
-        let expected = 0.0;
-        let actual = Array {
-            content:vec![
-                vec![1.0, 2.0, 3.0],
-                vec![1.0, 1.0, 3.0],
-                vec![3.0, 3.0, 9.0]
-            ],
-            size:(3, 3)
-        }.determinant();
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn determinant() {
-        let expected = 1.0;
-        let actual = Array {
-            content:vec![
-                vec![ 3.0, 1.0, 0.0],
-                vec![ 9.0, 3.0, 1.0],
-                vec![19.0, 6.0, 2.0]
-            ],
-            size:(3, 3)
-        }.determinant();
-        // Arbitrary
-        assert!(f64::abs(expected - actual) < 0.000001);
-    }
 }

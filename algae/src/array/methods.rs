@@ -113,6 +113,7 @@ mod tests{
     use crate::Array;
     use crate::array::methods::multiply_row;
     use crate::array::methods::multiply_add_row;
+    use crate::array::float_eq::FloatEq;
 
     #[test]
     fn test_multiply_row() {
@@ -216,5 +217,33 @@ mod tests{
         };
         let actual = Array::elementary_add_into(3, 0, 1, 3) * a;
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn determinant_0() {
+        let expected = 0.0;
+        let actual = Array {
+            content:vec![
+                vec![1.0, 2.0, 3.0],
+                vec![1.0, 1.0, 3.0],
+                vec![3.0, 3.0, 9.0]
+            ],
+            size:(3, 3)
+        }.determinant();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn determinant() {
+        let expected:f64 = 1.0;
+        let actual = Array {
+            content:vec![
+                vec![ 3.0, 1.0, 0.0],
+                vec![ 9.0, 3.0, 1.0],
+                vec![19.0, 6.0, 2.0]
+            ],
+            size:(3, 3)
+        }.determinant();
+        assert!(expected.float_eq(&actual));
     }
 }
