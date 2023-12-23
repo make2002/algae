@@ -15,7 +15,7 @@ impl<T: Copy + Clone + FloatEq> FloatEq for Array<T> {
         if self.size != other.size {return false;}
         for i in 0..self.size.0 {
             for j in 0..self.size.1 {
-                if !self[(i, j)].float_eq(&other[(i, j)]) {return false;}
+                if !self[(j, i)].float_eq(&other[(j, i)]) {return false;}
             }
         }
         true
@@ -37,15 +37,16 @@ Array<T> {
                 if pivot.0 >= self.content.len() {
                     pivot.1 += 1;
                 } 
-                temp = temp.clone().into_iter().rev().collect();
-                match temp.pop() {
-                    Some(t) => {
-                        temp.insert(0, t);
-    
-                        self.content.append(&mut temp);
-                    },
-                    None => {},
-                }
+                self.content.append(&mut temp);
+                // This way the elementary matrix only performs a single swap
+                // temp = temp.clone().into_iter().rev().collect();
+                // match temp.pop() {
+                //     Some(t) => {
+                //         temp.insert(0, t);
+                //         self.content.append(&mut temp);
+                //     },
+                //     None => {},
+                // }
                 if pivot.1 >= self.size.0 {
                     return;
                 }
@@ -91,6 +92,90 @@ Array<T> {
         }
     }
 
+    pub fn reduced_echelon_form(&mut self) {
+        self.echelon_form();
+        self.echelon_form_to_reduced_echelon_form();
+    }
+    
+    pub(in crate::array) fn extract_solution_from_matrix(res:Array<T>, mat:Array<T>)
+    -> Result<LinearSystemResult<T>, String> {
+        let (mut a, mut b) = Array::split_0_axis(res.clone(), mat.size.0);
+        // Might need a check if the outer split is even possible
+        let a = {
+            let mut temp = Array::split_1_axis(
+                a.clone(),
+                a.size.0,
+            ).0;
+            while temp.get_row(temp.size.1 - 1) == Array::new_filled((temp.size.0, 1), T::zero()) {
+                temp = Array::split_1_axis(
+                    temp.clone(),
+                    temp.size.1 - 1,
+                ).0;
+            }
+            temp
+        };
+        let mut b = match Array::split_1_axis(
+            b.clone(),
+            a.size.0,
+        ) {
+            (i, j) if j.float_eq(&Array::new_filled(j.size, T::zero())) => {
+                i
+            },
+            _ => return Err("No solution for this system of equations".to_string()),
+        };
+        while b.get_row(b.size.1 - 1) == Array::new_filled((b.size.0, 1), T::zero()) {
+            b = Array::split_1_axis(
+                b.clone(),
+                b.size.1 - 1,
+            ).0;
+        }
+        if a.float_eq(&Array::identity(a.size.0)) {
+            let mut r = b.clone();
+            r.extend_to((b.size.0, mat.size.1), T::zero());
+            Ok(LinearSystemResult::Single(r))
+        } else if b.size.1 > a.size.1 {
+            Err("No solution for this system of equations".to_string())
+        } else {
+            let mut pivot = (res.size.1 - 1, 0);
+            while pivot.0 >= 0 && res[pivot].float_eq(&T::zero()) {
+                pivot.1 += 1;
+                if pivot.1 >= res.size.0 {
+                    if pivot.0 == 0 {
+                        break;
+                    }
+                    pivot.0 -= 1;
+                    pivot.1 = 0;
+                } 
+            }
+            let mut free_variables:Option<Array<T>> = None;
+            let mut pivot_row = 0;
+            for col_index in 0..a.size.0 {
+                if pivot_row >= a.size.1 || a[(pivot_row, col_index)].float_eq(&T::zero()) {
+                    let mut col = -a.get_col(col_index);
+                    col.extend_to((1, mat.size.0), T::one());
+                    match free_variables {
+                        Some(arr) => {
+                            free_variables = Some(Array::concat_0_axis(arr, col));
+                        },
+                        None => free_variables = Some(col),
+                    }
+                } else {
+                    pivot_row += 1;
+                }
+            }
+            b.extend_to((b.size.0, mat.size.1), T::zero());
+            match free_variables {
+                Some(arr) => {
+                    // here fixed + any linear combination of the column vectors in arr will yield a result.
+                    Ok(LinearSystemResult::Infinite((b, arr)))
+                },
+                None => {
+                    panic!("Faulty implementation");
+                }
+            }
+        }
+    }
+    /*
     pub fn reduced_echelon_form(&mut self) {
         self.echelon_form();
         self.echelon_form_to_reduced_echelon_form();
@@ -164,66 +249,6 @@ Array<T> {
                 }
             }
         }  
-    }
-
-    /*
-    pub(in crate::array) fn extract_solution_from_matrix(res:(Array<T>, Array<T>), a:Array<T>)
-    -> Result<LinearSystemResult<T>, String> {
-        if res.0 == Array::identity(res.0.size.0) {
-            Ok(LinearSystemResult::Single(res.1))
-        } else {
-            let mut fixed = res.1.clone();
-            // Find the last pivot position and determine, whether it is
-            let joint = Array::concat_0_axis(res.0.clone(), res.1.clone());
-            let mut pivot = (joint.size.1 - 1, 0);
-            while pivot.0 >= 0 && joint[pivot] == T::zero() {
-                pivot.1 += 1;
-                if pivot.1 >= joint.size.0 {
-                    if pivot.0 == 0 {
-                        break;
-                    }
-                    pivot.0 -= 1;
-                    pivot.1 = 0;
-                } 
-            }
-            if pivot.1 > res.0.size.0 {
-                return Err("No solution for this system of equations".to_string());
-            }
-            if a.size.0 < fixed.size.1 {
-                let temp = Array::split_1_axis(fixed.clone(), a.size.0);
-                if temp.1 != Array::new_filled(temp.1.size, T::zero()) {
-                    return Err("No solution for this system of equations".to_string());
-                }
-                fixed = temp.0;
-            } else {
-                fixed.extend_to((fixed.size.0, a.size.0), T::zero());
-            }
-            let mut free_variables:Option<Array<T>> = None;
-            let mut pivot_row = 0;
-            for col_index in 0..res.0.size.0 {
-                if pivot_row >= res.0.size.1 || res.0[(pivot_row, col_index)] == T::zero() {
-                    let mut col = -res.0.get_col(col_index);
-                    col.extend_to((1, a.size.0), T::one());
-                    match free_variables {
-                        Some(arr) => {
-                            free_variables = Some(Array::concat_0_axis(arr, col));
-                        },
-                        None => free_variables = Some(col),
-                    }
-                } else {
-                    pivot_row += 1;
-                }
-            }
-            match free_variables {
-                Some(arr) => {
-                    // here fixed + any linear combination of the column vectors in arr will yield a result.
-                    Ok(LinearSystemResult::Infinite((fixed, arr)))
-                },
-                None => {
-                    panic!("Faulty implementation");
-                }
-            }
-        }        
     } */
 
     pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
@@ -327,6 +352,8 @@ mod tests{
     use crate::Array;
     use crate::array::methods::multiply_row;
     use crate::array::methods::multiply_add_row;
+    use crate::array::field_methods::LinearSystemResult;
+    use crate::array::float_eq::FloatEq;
 
     #[test]
     fn echelon_form() {
@@ -389,5 +416,125 @@ mod tests{
             temp
         };
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn solve_single() {
+        let expected = Array {
+            content:vec![vec![-16.0], vec![0.3333333333333333], vec![5.333333333333333]],
+            size:(1, 3),
+        };
+        let actual = {
+            let a = Array {
+                content:vec![
+                    vec![1.0, 3.0, 3.0],
+                    vec![3.0, 6.0, 9.0],
+                    vec![0.5, 1.0, 2.0],
+                ],
+                size:(3, 3),
+            };
+            let b = Array {
+                content:vec![vec![1.0], vec![2.0], vec![3.0]],
+                size:(1, 3),
+            };
+            Array::solve(a, b)
+        };
+        match actual {
+            Ok(LinearSystemResult::Single(a)) => {
+                assert!(expected.float_eq(&a));
+            }
+            _ => {
+                panic!("Wrong result");
+            }
+        }
+    }
+
+    // For reference
+    // 1 0 1 | 1
+    // 0 1 1 | 1
+    // 0 0 0 | 0
+    
+    //  3 0 3 | 3
+    // -1 1 0 | 0
+    //  2 3 5 | 5
+    #[test]
+    fn solve_infinite() {
+        let expected = (Array {
+            content:vec![vec![1.0], vec![1.0], vec![0.0]],
+            size:(1, 3),
+        }, Array {
+            content:vec![vec![-1.0], vec![-1.0], vec![1.0]],
+            size:(1, 3),
+        });
+        let actual = {
+            let a = Array {
+                content:vec![
+                    vec![3.0, 0.0, 3.0],
+                    vec![-1.0, 1.0, 0.0],
+                    vec![2.0, 3.0, 5.0],
+                ],
+                size:(3, 3),
+            };
+            let b = Array {
+                content:vec![vec![3.0], vec![0.0], vec![5.0]],
+                size:(1, 3),
+            };
+            Array::solve(a, b)
+        };
+        match actual {
+            Ok(LinearSystemResult::Infinite(a)) => {
+                assert!(expected.0.float_eq(&a.0));
+                assert!(expected.1.float_eq(&a.1));
+            },
+            Ok(LinearSystemResult::Single(s)) => {
+                panic!("Wrong result: {}", s);
+            },
+            Err(e) => {
+                panic!("Wrong result: {}", e);
+            },
+        }
+    }
+
+    // 1 0 1 | 1
+    // 0 1 0 | 1
+    // 0 0 0 | 1
+
+    // 1 3 1 | 4
+    // 2 1 2 | 3
+    // 4 0 4 | 5
+
+    #[test]
+    fn solve_unsolvable() {
+        let expected = (Array {
+            content:vec![vec![1.0], vec![1.0], vec![1.0]],
+            size:(1, 3),
+        }, Array {
+            content:vec![vec![-1.0], vec![-1.0], vec![1.0]],
+            size:(1, 3),
+        });
+        let actual = {
+            let a = Array {
+                content:vec![
+                    vec![1.0, 3.0, 1.0],
+                    vec![1.0, 2.0, 1.0],
+                    vec![4.0, 0.0, 4.0],
+                ],
+                size:(3, 3),
+            };
+            let b = Array {
+                content:vec![vec![4.0], vec![3.0], vec![5.0]],
+                size:(1, 3),
+            };
+            Array::solve(a, b)
+        };
+        match actual {
+            Ok(LinearSystemResult::Infinite(a)) => {
+                panic!("Wrong result: {}; {}", a.0, a.1);
+            },
+            Ok(LinearSystemResult::Single(s)) => {
+                panic!("Wrong result: {}", s);
+            },
+            _ => {}
+        }
     }
 }
