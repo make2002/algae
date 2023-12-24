@@ -70,7 +70,7 @@ Array<T> {
 
     pub(in crate::array) fn echelon_form_to_reduced_echelon_form(&mut self) {
         let mut pivot = (self.size.1 - 1, 0);
-        while pivot.0 >= 0 && self[pivot].float_eq(&T::zero()) {
+        while self[pivot].float_eq(&T::zero()) {
             pivot.1 += 1;
             if pivot.1 >= self.size.0 {
                 if pivot.0 == 0 {
@@ -137,7 +137,7 @@ Array<T> {
             Err("No solution for this system of equations".to_string())
         } else {
             let mut pivot = (res.size.1 - 1, 0);
-            while pivot.0 >= 0 && res[pivot].float_eq(&T::zero()) {
+            while res[pivot].float_eq(&T::zero()) {
                 pivot.1 += 1;
                 if pivot.1 >= res.size.0 {
                     if pivot.0 == 0 {
@@ -175,81 +175,6 @@ Array<T> {
             }
         }
     }
-    /*
-    pub fn reduced_echelon_form(&mut self) {
-        self.echelon_form();
-        self.echelon_form_to_reduced_echelon_form();
-    }pub(in crate::array) fn extract_solution_from_matrix(res:Array<T>, a:Array<T>)
-    -> Result<LinearSystemResult<T>, String> {
-        let (mut mat, mut fixed) = Array::split_0_axis(res.clone(), a.size.0);
-        // Might need a check if the outer split is even possible
-        let mat = Array::split_1_axis(
-            mat.clone(),
-            a.size.0,
-        ).0;
-        let mut fixed = match Array::split_1_axis(
-            fixed.clone(),
-            a.size.0,
-        ) {
-            (i, j) if j.float_eq(&Array::new_filled(j.size, T::zero())) => {
-                i
-            },
-            _ => return Err("No solution for this system of equations".to_string()),
-        };
-        if mat.float_eq(&Array::identity(mat.size.0)) {
-            Ok(LinearSystemResult::Single(fixed))
-        } else {
-            // Find the last pivot position and determine, whether it is
-            let mut pivot = (res.size.1 - 1, 0);
-            while pivot.0 >= 0 && res[pivot].float_eq(&T::zero()) {
-                pivot.1 += 1;
-                if pivot.1 >= res.size.0 {
-                    if pivot.0 == 0 {
-                        break;
-                    }
-                    pivot.0 -= 1;
-                    pivot.1 = 0;
-                } 
-            }
-            if pivot.1 > mat.size.0 {
-                return Err("No solution for this system of equations".to_string());
-            }
-            if a.size.0 < fixed.size.1 {
-                let temp = Array::split_1_axis(fixed.clone(), a.size.0);
-                if temp.1 != Array::new_filled(temp.1.size, T::zero()) {
-                    return Err("No solution for this system of equations".to_string());
-                }
-                fixed = temp.0;
-            } else {
-                fixed.extend_to((fixed.size.0, a.size.0), T::zero());
-            }
-            let mut free_variables:Option<Array<T>> = None;
-            let mut pivot_row = 0;
-            for col_index in 0..mat.size.0 {
-                if pivot_row >= mat.size.1 || mat[(pivot_row, col_index)].float_eq(&T::zero()) {
-                    let mut col = -mat.get_col(col_index);
-                    col.extend_to((1, a.size.0), T::one());
-                    match free_variables {
-                        Some(arr) => {
-                            free_variables = Some(Array::concat_0_axis(arr, col));
-                        },
-                        None => free_variables = Some(col),
-                    }
-                } else {
-                    pivot_row += 1;
-                }
-            }
-            match free_variables {
-                Some(arr) => {
-                    // here fixed + any linear combination of the column vectors in arr will yield a result.
-                    Ok(LinearSystemResult::Infinite((fixed, arr)))
-                },
-                None => {
-                    panic!("Faulty implementation");
-                }
-            }
-        }  
-    } */
 
     pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
         if a.size.1 != b.size.1 {
@@ -276,7 +201,7 @@ Array<T> {
         let mut a = self.clone();
         a.echelon_form();
         let mut pivot = (a.size.1 - 1, 0);
-        while pivot.0 >= 0 && a[pivot].float_eq(&T::zero()) {
+        while a[pivot].float_eq(&T::zero()) {
             pivot.1 += 1;
             if pivot.1 >= a.size.0 {
                 if pivot.0 == 0 {
@@ -350,10 +275,10 @@ Array<T> {
 #[cfg(test)]
 mod tests{
     use crate::Array;
+    use crate::array::float_eq::FloatEq;
     use crate::array::methods::multiply_row;
     use crate::array::methods::multiply_add_row;
     use crate::array::field_methods::LinearSystemResult;
-    use crate::array::float_eq::FloatEq;
 
     #[test]
     fn echelon_form() {
@@ -536,5 +461,91 @@ mod tests{
             },
             _ => {}
         }
+    }
+
+    #[test]
+    fn inverse() {
+        let matrix = Array {
+            content:vec![
+                vec![1.0, 3.0, 3.0],
+                vec![3.0, 6.0, 9.0],
+                vec![0.5, 1.0, 2.0],
+            ],
+            size:(3, 3),
+        };
+        let inverse = match matrix.inv() {
+            Ok(i) => i,
+            Err(e) => panic!("Error: {}", e),
+        };
+        assert!(Array::identity(matrix.size.0).float_eq(&(inverse.clone() * matrix.clone())));
+        assert!(Array::identity(matrix.size.0).float_eq(&(matrix.clone() * inverse.clone())));
+    }
+
+    #[test]
+    fn rank() {
+        let expected = 2;
+        let actual = {
+            let temp = Array {
+                content:vec![
+                    vec![3.0, 0.0, 3.0],
+                    vec![-1.0, 1.0, 0.0],
+                    vec![2.0, 3.0, 5.0],
+                ],
+                size:(3, 3),
+            };
+            temp.rank()
+        };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn leontief_input_output_model_test() {
+        let expected = Array {
+            content:vec![vec![-16.0], vec![0.3333333333333333], vec![5.333333333333333]],
+            size:(1, 3),
+        };
+        match {
+            let consumption = Array {
+                content:vec![
+                    vec![0.0, -3.0, -3.0],
+                    vec![-3.0, -5.0, -9.0],
+                    vec![-0.5, -1.0, -1.0],
+                ],
+                size:(3, 3),
+            };
+            let demand = Array {
+                content:vec![vec![1.0], vec![2.0], vec![3.0]],
+                size:(1, 3),
+            };
+            Array::leontief_input_output_model(consumption, demand)
+        } {
+            Ok(LinearSystemResult::Single(actual)) => assert!(expected.float_eq(&actual)),
+            Ok(LinearSystemResult::Infinite(actual)) => panic!("Wrong result: {}, {}", actual.0, actual.1),
+            Err(e) => panic!("Error: {}", e),
+        }
+    }
+
+    #[test]
+    fn cramers_rule_test() {
+        let expected = Array {
+            content:vec![vec![-16.0], vec![0.3333333333333333], vec![5.333333333333333]],
+            size:(1, 3),
+        };
+        let actual = {
+            let a = Array {
+                content:vec![
+                    vec![1.0, 3.0, 3.0],
+                    vec![3.0, 6.0, 9.0],
+                    vec![0.5, 1.0, 2.0],
+                ],
+                size:(3, 3),
+            };
+            let b = Array {
+                content:vec![vec![1.0], vec![2.0], vec![3.0]],
+                size:(1, 3),
+            };
+            Array::cramers_rule(a, b)
+        };
+        assert!(expected.float_eq(&actual));
     }
 }

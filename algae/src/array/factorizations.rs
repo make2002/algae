@@ -61,7 +61,7 @@ LuFactorization<T> {
     fn solve_l(&self, y:Array<T>) -> Array<T> {
         let mut temp = Array::concat_0_axis(self.u.clone(), y);        
         let mut pivot = (temp.size.1 - 1, 0);
-        while pivot.0 >= 0 && temp[pivot].float_eq(&T::zero()) {
+        while temp[pivot].float_eq(&T::zero()) {
             pivot.1 += 1;
             if pivot.1 >= temp.size.0 {
                 if pivot.0 == 0 {
