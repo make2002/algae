@@ -123,7 +123,7 @@ Array<T> {
             },
             _ => return Err("No solution for this system of equations".to_string()),
         };
-        while b.get_row(b.size.1 - 1) == Array::new_filled((b.size.0, 1), T::zero()) {
+        while b.size.1 > 0 && b.get_row(b.size.1 - 1) == Array::new_filled((b.size.0, 1), T::zero()) {
             b = Array::split_1_axis(
                 b.clone(),
                 b.size.1 - 1,
@@ -547,5 +547,24 @@ mod tests{
             Array::cramers_rule(a, b)
         };
         assert!(expected.float_eq(&actual));
+    }
+
+    #[test]
+    fn null_space() {
+        let expected = Array{
+            content:vec![vec![-1.0], vec![-1.0], vec![1.0]],
+            size:(1, 3),
+        };
+        let actual = {
+            Array {
+                content:vec![
+                    vec![3.0, 0.0, 3.0],
+                    vec![-1.0, 1.0, 0.0],
+                    vec![2.0, 3.0, 5.0],
+                ],
+                size:(3, 3),
+            }.null_space()
+        };
+        assert_eq!(expected, actual);
     }
 }
