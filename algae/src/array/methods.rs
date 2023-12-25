@@ -1,4 +1,4 @@
-use crate::Array;
+use crate::array::array::Array;
 use std::ops::{Add, Sub, Neg, Mul, Div};
 use num::traits::{One, Zero};
 
@@ -14,11 +14,6 @@ pub(in crate::array) fn multiply_add_row<T: Copy + Clone + Add<Output = T> + Mul
     for col in pivot_col..a.size.0 {
         a[(to_row, col)] = a[(to_row, col)] + a[(from_row, col)] * factor;
     }
-}
-
-pub enum LinearSystemResult<T> {
-    Single(Array<T>),
-    Infinite((Array<T>, Array<T>)),
 }
 
 impl<T: Copy + Clone + Zero + One + PartialEq
@@ -110,7 +105,7 @@ Array<T> {
 
 #[cfg(test)]
 mod tests{
-    use crate::Array;
+    use crate::array::methods::Array;
     use crate::array::methods::multiply_row;
     use crate::array::methods::multiply_add_row;
     use crate::array::float_eq::FloatEq;

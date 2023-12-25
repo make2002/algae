@@ -1,16 +1,11 @@
 use crate::array::array::Array;
 use crate::array::methods::multiply_row;
 use crate::array::methods::multiply_add_row;
-use crate::array::methods::LinearSystemResult;
 use crate::array::float_eq::FloatEq;
 use std::ops::{Add, Sub, Neg, Mul, Div};
 use num::traits::{One, Zero};
 
 impl<T: Copy + Clone + FloatEq> FloatEq for Array<T> {
-    fn zero_threshold() -> Array<T> {
-        Array::new_mat(Vec::<Vec<T>>::new())
-    }
-
     fn float_eq(&self, other:&Self) -> bool {
         if self.size != other.size {return false;}
         for i in 0..self.size.0 {
@@ -20,6 +15,12 @@ impl<T: Copy + Clone + FloatEq> FloatEq for Array<T> {
         }
         true
     }
+}
+
+pub enum LinearSystemResult<T> {
+    Single(Array<T>),
+    Infinite((Array<T>, Array<T>)),
+    Inconsistent,
 }
 
 impl<T: Copy + Clone + Zero + One + PartialEq
@@ -98,8 +99,8 @@ Array<T> {
     }
     
     pub(in crate::array) fn extract_solution_from_matrix(res:Array<T>, mat:Array<T>)
-    -> Result<LinearSystemResult<T>, String> {
-        let (mut a, mut b) = Array::split_0_axis(res.clone(), mat.size.0);
+    -> LinearSystemResult<T> {
+        let (a, b) = Array::split_0_axis(res.clone(), mat.size.0);
         // Might need a check if the outer split is even possible
         let a = {
             let mut temp = Array::split_1_axis(
@@ -121,7 +122,7 @@ Array<T> {
             (i, j) if j.float_eq(&Array::new_filled(j.size, T::zero())) => {
                 i
             },
-            _ => return Err("No solution for this system of equations".to_string()),
+            _ => return LinearSystemResult::Inconsistent,
         };
         while b.size.1 > 0 && b.get_row(b.size.1 - 1) == Array::new_filled((b.size.0, 1), T::zero()) {
             b = Array::split_1_axis(
@@ -132,9 +133,9 @@ Array<T> {
         if a.float_eq(&Array::identity(a.size.0)) {
             let mut r = b.clone();
             r.extend_to((b.size.0, mat.size.1), T::zero());
-            Ok(LinearSystemResult::Single(r))
+            LinearSystemResult::Single(r)
         } else if b.size.1 > a.size.1 {
-            Err("No solution for this system of equations".to_string())
+            LinearSystemResult::Inconsistent
         } else {
             let mut pivot = (res.size.1 - 1, 0);
             while res[pivot].float_eq(&T::zero()) {
@@ -167,7 +168,7 @@ Array<T> {
             match free_variables {
                 Some(arr) => {
                     // here fixed + any linear combination of the column vectors in arr will yield a result.
-                    Ok(LinearSystemResult::Infinite((b, arr)))
+                    LinearSystemResult::Infinite((b, arr))
                 },
                 None => {
                     panic!("Faulty implementation");
@@ -176,11 +177,10 @@ Array<T> {
         }
     }
 
-    pub fn solve(a:Array<T>, b:Array<T>) -> Result<LinearSystemResult<T>, String> {
+    pub fn solve(a:Array<T>, b:Array<T>) -> LinearSystemResult<T> {
         if a.size.1 != b.size.1 {
             panic!("The height of the A matrix and the b vector must be equal.");
         } 
-        let split_col = a.size.0;
         let mut m = Array::concat_0_axis(a.clone(), b);
         m.reduced_echelon_form();
         Self::extract_solution_from_matrix(m, a)
@@ -188,7 +188,7 @@ Array<T> {
 
     pub fn inv(&self) -> Result<Array<T>, String> {
         match Self::solve(self.clone(), Self::identity(self.size.0)) {
-            Ok(LinearSystemResult::Single(r)) => {
+            LinearSystemResult::Single(r) => {
                 Ok(r)
             },
             _ => {
@@ -218,7 +218,7 @@ Array<T> {
     }
 
     pub fn leontief_input_output_model(consumption:Array<T>, demand:Array<T>) 
-    -> Result<LinearSystemResult<T>, String> {
+    -> LinearSystemResult<T> {
         if consumption.size.0 != consumption.size.1 {
             panic!("A consumption matrix must be square.");
         }
@@ -264,9 +264,9 @@ Array<T> {
 
     pub fn null_space(&self) -> Array<T> {
         match Array::solve(self.clone(), Array::new_filled((1, self.size.1), T::zero())) {
-            Ok(LinearSystemResult::Single(res)) => res,
-            Ok(LinearSystemResult::Infinite(res)) => res.1,
-            Err(e) => panic!("Faulty implementation: {}", e),
+            LinearSystemResult::Single(res) => res,
+            LinearSystemResult::Infinite(res) => res.1,
+            LinearSystemResult::Inconsistent => panic!("Faulty implementation: Incosistent system of equations."),
         }
     }
 }
@@ -274,10 +274,8 @@ Array<T> {
 
 #[cfg(test)]
 mod tests{
-    use crate::Array;
+    use crate::array::field_methods::Array;
     use crate::array::float_eq::FloatEq;
-    use crate::array::methods::multiply_row;
-    use crate::array::methods::multiply_add_row;
     use crate::array::field_methods::LinearSystemResult;
 
     #[test]
@@ -365,7 +363,7 @@ mod tests{
             Array::solve(a, b)
         };
         match actual {
-            Ok(LinearSystemResult::Single(a)) => {
+            LinearSystemResult::Single(a) => {
                 assert!(expected.float_eq(&a));
             }
             _ => {
@@ -407,15 +405,15 @@ mod tests{
             Array::solve(a, b)
         };
         match actual {
-            Ok(LinearSystemResult::Infinite(a)) => {
+            LinearSystemResult::Infinite(a) => {
                 assert!(expected.0.float_eq(&a.0));
                 assert!(expected.1.float_eq(&a.1));
             },
-            Ok(LinearSystemResult::Single(s)) => {
+            LinearSystemResult::Single(s) => {
                 panic!("Wrong result: {}", s);
             },
-            Err(e) => {
-                panic!("Wrong result: {}", e);
+            LinearSystemResult::Inconsistent => {
+                panic!("Wrong result: Linear system inconsistent.");
             },
         }
     }
@@ -430,13 +428,6 @@ mod tests{
 
     #[test]
     fn solve_unsolvable() {
-        let expected = (Array {
-            content:vec![vec![1.0], vec![1.0], vec![1.0]],
-            size:(1, 3),
-        }, Array {
-            content:vec![vec![-1.0], vec![-1.0], vec![1.0]],
-            size:(1, 3),
-        });
         let actual = {
             let a = Array {
                 content:vec![
@@ -453,10 +444,10 @@ mod tests{
             Array::solve(a, b)
         };
         match actual {
-            Ok(LinearSystemResult::Infinite(a)) => {
+            LinearSystemResult::Infinite(a) => {
                 panic!("Wrong result: {}; {}", a.0, a.1);
             },
-            Ok(LinearSystemResult::Single(s)) => {
+            LinearSystemResult::Single(s) => {
                 panic!("Wrong result: {}", s);
             },
             _ => {}
@@ -519,9 +510,9 @@ mod tests{
             };
             Array::leontief_input_output_model(consumption, demand)
         } {
-            Ok(LinearSystemResult::Single(actual)) => assert!(expected.float_eq(&actual)),
-            Ok(LinearSystemResult::Infinite(actual)) => panic!("Wrong result: {}, {}", actual.0, actual.1),
-            Err(e) => panic!("Error: {}", e),
+            LinearSystemResult::Single(actual) => assert!(expected.float_eq(&actual)),
+            LinearSystemResult::Infinite(actual) => panic!("Wrong result: {}, {}", actual.0, actual.1),
+            LinearSystemResult::Inconsistent => panic!("Error: Inconsistent system of equations."),
         }
     }
 

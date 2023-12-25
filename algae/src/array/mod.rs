@@ -578,6 +578,7 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
+    #[test]
     fn scaler_prod() {
         let expected = Array {
             content:vec![vec![2, 4], vec![0, 2]],
