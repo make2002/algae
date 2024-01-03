@@ -269,6 +269,37 @@ Array<T> {
             LinearSystemResult::Inconsistent => panic!("Faulty implementation: Incosistent system of equations."),
         }
     }
+
+    pub fn get_linear_independent(mut array:Self) -> Array<T> {
+        let echelon_form = {
+            let mut temp = array.clone();
+            temp.echelon_form();
+            temp
+        };
+        let mut pivot = (0, 0);
+        let mut indicies = Vec::<usize>::with_capacity(echelon_form.size.0);
+        while pivot.1 < echelon_form.size.0 {
+            while   (pivot.0 >= echelon_form.size.1 && pivot.1 < echelon_form.size.0) ||
+                    pivot.0 < echelon_form.size.1 &&
+                    pivot.1 < echelon_form.size.0 &&
+                    echelon_form[pivot].float_eq(&T::zero())
+            {
+                indicies.push(pivot.1);
+                pivot.1 += 1;
+            }
+            pivot = (pivot.0 + 1, pivot.1 + 1);
+        }
+        while let Some(i) = indicies.pop() {
+            if i + 1 < array.size.0 {
+                let a = Array::split_0_axis(array.clone(), i).0;
+                let b = Array::split_0_axis(array.clone(), i + 1).1;
+                array = Array::concat_0_axis(a, b);
+            } else {
+                array = Array::split_0_axis(array.clone(), i).0;
+            }
+        }
+        array
+    }
 }
 
 
@@ -556,6 +587,27 @@ mod tests{
                 size:(3, 3),
             }.null_space()
         };
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_linear_independent_test() {
+        let expected = Array {
+            content:vec![
+                vec![1.0, 3.0],
+                vec![2.0, 3.0],
+                vec![2.0, 1.0],
+            ],
+            size:(2, 3),
+        };
+        let actual = Array::get_linear_independent(Array {
+            content:vec![
+                vec![1.0, 2.0, 3.0, 6.0],
+                vec![2.0, 4.0, 3.0, 6.0],
+                vec![2.0, 4.0, 1.0, 2.0],
+            ],
+            size:(4, 3),
+        });
         assert_eq!(expected, actual);
     }
 }
