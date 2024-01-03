@@ -300,6 +300,14 @@ Array<T> {
         }
         array
     }
+    
+    pub fn change_basis(basis_a:&Array<T>, vec_a:&Array<T>, basis_b:&Array<T>) -> Array<T> {
+        let basis_b_inv = match basis_b.inv() {
+            Ok(i) => i,
+            Err(e) => panic!("Error: basis_b not a basis: {}", e),
+        };
+        basis_b_inv * basis_a.clone() * vec_a.clone()
+    }
 }
 
 
@@ -609,5 +617,36 @@ mod tests{
             size:(4, 3),
         });
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn change_basis_test() {
+        let basis_a = Array {
+            content:vec![
+                vec![3.0, 4.0, 0.0],
+                vec![0.0, 4.0, 4.0],
+                vec![1.0, 0.0, 4.0],
+            ],
+            size:(3, 3),
+        };
+        let basis_b = Array {
+            content:vec![
+                vec![1.0, 1.0, 1.0],
+                vec![1.0, 2.0, 3.0],
+                vec![1.0, 4.0, 9.0],
+            ],
+            size:(3, 3),
+        };
+        let vec_a = Array {
+            content:vec![
+                vec![1.0],
+                vec![0.0],
+                vec![0.0],
+            ],
+            size:(1, 3),
+        };
+        let vec_b = Array::change_basis(&basis_a, &vec_a, &basis_b);
+        let vec_a_back = Array::change_basis(&basis_b, &vec_b, &basis_a);
+        assert!(vec_a.float_eq(&vec_a_back));
     }
 }
