@@ -49,11 +49,33 @@ mod SignalProcessing {
             true
         }
     }
+
+    fn convolution_step(signal:&Vec<f64>, filter:&Vec<f64>, k:usize) -> f64 {
+        let signal_arr = {
+            let start = usize::saturating_sub(k, filter.len());
+            let end = usize::min(k, signal.len());
+            Array::new_vec((&signal[start..end]).to_vec())
+        };
+        let filter_arr = {
+            let start = usize::saturating_sub(filter.len(), k);
+            let end = start + signal_arr.size.1;
+            Array::new_vec((&filter[start..end]).to_vec())
+        };
+        (signal_arr.transpose() * filter_arr)[(0, 0)]
+    }
+
+    pub fn convolve(signal:&Vec<f64>, filter:&Vec<f64>) -> Vec<f64> {
+        let mut result = Vec::<f64>::with_capacity(signal.len() + filter.len());
+        for k in 1..(signal.len() + filter.len()) {
+            result.push(convolution_step(&signal, &filter, k));
+        }
+        result
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::signal_processing::SignalProcessing::is_linearly_dependent;
+    use crate::signal_processing::SignalProcessing::*;
 
     #[test]
     fn linear_independency_true() {
@@ -79,5 +101,25 @@ mod tests {
             is_linearly_dependent(signals)
         };
         assert!(!actual);
+    }
+
+    #[test]
+    fn convolution_one() {
+        let signal = vec![1.0, 1.0, 1.0];
+        let filter = vec![0.25, 0.5, 0.25];
+        let expected = vec![0.25, 0.75, 1.0, 0.75, 0.25];
+        let actual = convolve(&signal, &filter);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn convolution_two() {
+        let signal = vec![1.0, 1.0];
+        let filter = vec![0.25, 0.5, 0.25];
+        let expected = vec![0.25, 0.75, 0.75, 0.25];
+        let actual = convolve(&signal, &filter);
+
+        assert_eq!(expected, actual);
     }
 }
