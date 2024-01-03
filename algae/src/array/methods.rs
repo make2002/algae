@@ -35,6 +35,18 @@ Array<T> {
         Array::new_mat(content)
     }
 
+    pub fn standard_vec(i:usize, len:usize) -> Array<T> {
+        let mut content = Vec::<T>::with_capacity(len);
+        while content.len() < i - 1 {
+            content.push(T::zero());
+        }
+        content.push(T::one());
+        while content.len() < len {
+            content.push(T::zero());
+        }
+        Array::new_vec(content)
+    }
+
     pub fn elementary_swap(size:usize, swap:(usize, usize)) -> Self {
         let mut ret = Array::identity(size);
         ret[(swap.0, swap.0)] = T::zero();
