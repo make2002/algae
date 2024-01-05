@@ -37,7 +37,7 @@ Array<T> {
 
     pub fn standard_vec(i:usize, len:usize) -> Array<T> {
         let mut content = Vec::<T>::with_capacity(len);
-        while content.len() < i - 1 {
+        while content.len() < i {
             content.push(T::zero());
         }
         content.push(T::one());

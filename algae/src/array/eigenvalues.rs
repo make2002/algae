@@ -8,7 +8,7 @@ use num::traits::{One, Zero};
 impl<T: Copy + Clone + Zero + One + PartialEq + PartialOrd
  + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T> + Div<Output = T> + FloatEq + std::fmt::Display> 
 Array<T> {
-    pub fn power_method(array:Array<T>, x_zero:Array<T>, iteration_cap:usize) 
+    pub fn power_method(array:&Array<T>, x_zero:Array<T>, iteration_cap:usize) 
     -> Result<(T, Array<T>), (String, T, Array<T>)> {
         let mut x_k_minus_one = x_zero;
         let mut mu_k_minus_one = T::zero();
@@ -37,7 +37,7 @@ Array<T> {
         ))
     }
 
-    pub fn inverse_power_method(array:Array<T>, x_zero:Array<T>, alpha:T, iteration_cap:usize) 
+    pub fn inverse_power_method(array:&Array<T>, x_zero:Array<T>, alpha:T, iteration_cap:usize) 
     -> Result<(T, Array<T>), (String, T, Array<T>)> {
         let mut v_k_minus_one = alpha;
         let mut x_k_minus_one = x_zero.clone();
@@ -99,7 +99,7 @@ mod tests {
             size:(1, 2),
         };
         let iteration_cap = 10000;
-        match Array::power_method(array.clone(), e_0, iteration_cap) {
+        match Array::power_method(&array, e_0, iteration_cap) {
             Ok((lambda, x)) => {
                 assert!((array * x.clone()).float_eq(&(x * lambda)))
             },
@@ -127,7 +127,7 @@ mod tests {
         };
         let alpha = 0.0;
         let iteration_cap = 10000;
-        match Array::inverse_power_method(array.clone(), e_0, alpha, iteration_cap) {
+        match Array::inverse_power_method(&array, e_0, alpha, iteration_cap) {
             Ok((lambda, x)) => {
                 assert!((array * x.clone()).float_eq(&(x * lambda)))
             },
