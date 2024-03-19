@@ -1,5 +1,5 @@
 mod ml {
-    use std::error;
+    use std::{error, process::Output};
 
     use crate::array::array::Array;
     
@@ -257,7 +257,7 @@ mod ml {
         };
     }
 
-    struct NeuralNetwork {
+    pub struct NeuralNetwork {
         input:Array<f64>,
         output:Array<f64>,
         weights:Vec<Array<f64>>,
@@ -266,7 +266,7 @@ mod ml {
     }
 
     impl NeuralNetwork {
-       fn new(
+       pub fn new(
            input_size:usize, 
            output_size:usize, 
            depth:usize, 
@@ -305,18 +305,18 @@ mod ml {
             }
         }
 
-        fn get_input_size(&self) -> usize {
+        pub fn get_input_size(&self) -> usize {
             self.input.size.1
         }
 
-        fn set_input(&mut self, input:Vec<f64>) {
+        pub fn set_input(&mut self, input:Vec<f64>) {
             if input.len() != self.input.size.1 {
                 panic!("Error: Wrong input size, expected '{}', actually '{}'.", self.input.size.1, input.len());
             }
             self.input = Array::new_vec(input);
         }
 
-        fn get_output(&self) -> Vec<f64> {
+        pub fn get_output(&self) -> Vec<f64> {
             let mut output = Vec::<f64>::with_capacity(self.output.size.1);
             for row in 0..self.output.size.1 {
                 output.push(self.output[(row, 0)]);
@@ -324,7 +324,7 @@ mod ml {
             output
         }
 
-        fn propagate_forward(&mut self) {
+        pub fn propagate_forward(&mut self) {
             let mut temp = self.input.clone();
             for i in 0..self.weights.len() {
                 temp = apply!(
@@ -335,7 +335,7 @@ mod ml {
             self.output = temp;
         }
 
-        fn propagate_back(&mut self, target:Vec<f64>, learning_rate:f64) {
+        pub fn propagate_backwards(&mut self, target:Vec<f64>, learning_rate:f64) -> Vec<f64> {
             let mut error = self.output.clone();
             for i in 0..error.size.1 {
                 error[(0, i)] = self.output[(0, i)] - target[i];
@@ -352,6 +352,97 @@ mod ml {
                 self.biases[i] = self.biases[i].clone() - biases_gradient * learning_rate;
 
                 error = delta_weights.hadamard_product(self.weights[i].clone());
+            }
+            let mut error_vec = Vec::<f64>::with_capacity(error.size.1);
+            for n in 0..error.size.1 {
+                error_vec.push(error[(n, 0)]);
+            }
+            error_vec
+        }
+    }
+
+    pub struct RecurrentNeuralNetwork {
+        neural_network:NeuralNetwork,
+        hidden_layer_size:usize,
+    } 
+
+    impl RecurrentNeuralNetwork {
+        pub fn new(
+            input_size:usize, 
+            output_size:usize, 
+            hidden_layer_size:usize,
+            depth:usize, 
+            layers:usize, 
+            activation_function:ActivationFunction
+        ) -> Self {
+            let neural_network = NeuralNetwork::new(
+                input_size + hidden_layer_size, 
+                output_size + hidden_layer_size, 
+                depth, 
+                layers, 
+                activation_function,
+            );
+            RecurrentNeuralNetwork {
+                neural_network,
+                hidden_layer_size
+            }
+        }
+
+        pub fn get_input_size(&self) -> usize {
+            self.neural_network.get_input_size() - self.hidden_layer_size
+        }
+
+        pub fn set_input(&mut self, mut input:Vec<f64>) {
+            input.append(&mut self.neural_network.get_output());
+            self.neural_network.set_input(input)
+        }
+
+        pub fn get_hidden_layer_size(&self) -> usize {
+            self.hidden_layer_size
+        }
+
+        pub fn get_hidden_layer(&self) -> Vec<f64> {
+            let mut hidden_layer = self.neural_network.get_output();
+            hidden_layer.split_off(hidden_layer.len() - self.hidden_layer_size)
+        }
+
+        pub fn manual_hidden_layer(&mut self, hidden_layer:Vec<f64>) {
+            for n in (0..self.hidden_layer_size).rev() {
+                let nn_index = self.neural_network.input.size.1 - n;
+                let hidden_index = self.hidden_layer_size - n;
+                self.neural_network.input[(nn_index, 0)] = hidden_layer[hidden_index];
+            }
+        }
+
+        pub fn get_output(&self) -> Vec<f64> {
+            let mut output = self.neural_network.get_output();
+            output.truncate(output.len() - self.hidden_layer_size);
+            output
+        }
+
+        pub fn propagate_forward(&mut self) {
+            self.neural_network.propagate_forward()
+        }
+
+        pub fn propagate_backwards(&mut self, mut target:Vec<f64>, learning_rate:f64) -> Vec<f64> {
+            while target.len() < self.neural_network.output.size.1 + self.hidden_layer_size {
+                target.push(self.neural_network.output[(target.len(), 0)]);
+            }
+            self.propagate_backwards(target, learning_rate)
+        }
+
+        // Note that this implementation allows for the target to be larger than the output 
+        //      thus also learning the hidden layer. 
+        //      This isn't a bug, it's a feature ;)
+        pub fn backward_pass(&mut self, target:Vec<f64>, learning_rate:f64, mut history:Vec<(Vec<f64>, Vec<f64>)>) {
+            let mut error = self.propagate_backwards(target, learning_rate);
+            while let Some((target_out, target_hidden_layer)) = history.pop() {
+                let mut target = target_out;
+                let index = self.neural_network.input.size.1 - self.hidden_layer_size;
+                target.append(&mut error.split_off(index));
+                
+                self.manual_hidden_layer(target_hidden_layer);
+                error = self.neural_network.propagate_backwards(target, learning_rate);
             }
         }
     }
