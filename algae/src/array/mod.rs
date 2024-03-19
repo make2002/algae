@@ -83,7 +83,7 @@ pub mod array {
             }
         }
 
-        pub fn new_filled(size:(usize, usize), value:T) -> Self{
+        pub fn new_filled(size:(usize, usize), value:T) -> Self {
             let row = vec![value; size.0];
             let mut content = Vec::<Vec<T>>::with_capacity(size.1);
             while content.len() < size.1 {
@@ -332,6 +332,21 @@ pub mod array {
             }
             array
         }
+    }
+
+    impl <T: Copy + Clone + Mul<Output = T>> Array<T> {
+        pub fn hadamard_product(self, other:Self) -> Self {
+            if self.size != other.size {
+                panic!("The factors of a hadamard_product need to have the same size.");
+            }
+            let mut array = self.clone();
+            for row in 0..self.size.1 {
+                for col in 0..self.size.0 {
+                    array[(row, col)] = self[(row, col)] * other[(row, col)]; 
+                }
+            }
+            array
+        }        
     }
 }
 

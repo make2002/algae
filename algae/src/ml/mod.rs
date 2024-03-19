@@ -1,6 +1,9 @@
 mod ml {
+    use std::error;
+
     use crate::array::array::Array;
     
+    #[derive(Clone, Copy)]
     enum ActivationFunction{
         Perceptron,
         Sigmoid,
@@ -17,23 +20,51 @@ mod ml {
             f64::signum(value)
         }
 
+        fn perceptron_derivative(value:f64) -> f64 {
+            0.
+        }
+
         fn sigmoid(value:f64) -> f64 {
             1.0 / 1.0 + (-value).exp()
+        }
+
+        fn sigmoid_derivative(value:f64) -> f64 {
+            (-value).exp() / ((-2. * value).exp() + 2. * (-value).exp() + 1.)
         }
 
         fn tanh(value:f64) -> f64 {
             value.tanh()
         }
 
+        fn tanh_derivative(value:f64) -> f64 {
+            1. - value.tanh().powf(2.)
+        }
+
         fn relu(value:f64) -> f64 {
-            value.max(0.0)
+            value.max(0.)
+        }
+
+        fn relu_derivative(value:f64) -> f64 {
+            if value > 0. {
+                1.
+            } else {
+                0.
+            }
         }
 
         fn leaky_relu(value:f64) -> f64 {
-            if value < 0.0 {
+            if value < 0. {
                 0.1 * value
             } else {
                 value
+            }
+        }
+
+        fn leaky_relu_derivative(value:f64) -> f64 {
+            if value < 0.0 {
+                0.1
+            } else {
+                1.
             }
         }
 
@@ -45,12 +76,28 @@ mod ml {
             }
         }
 
+        fn elu_derivative(value:f64) -> f64 {
+            if value < 0.0 {
+                value.exp()
+            } else {
+                1.
+            }
+        }
+
         fn softmax(value:f64, divisor:f64) -> f64 {
+            value.exp() / divisor
+        }
+
+        fn softmax_derivative(value:f64, divisor:f64) -> f64 {
             value.exp() / divisor
         }
 
         fn softplus(value:f64) -> f64 {
             (1.0 + value.exp()).ln()
+        }
+
+        fn softplus_derivative(value:f64) -> f64 {
+            value.exp() / (value.exp() + 1.)
         }
     }
 
@@ -131,6 +178,84 @@ mod ml {
             }
         };
     }
+    
+    #[macro_export]
+    macro_rules! derivative {
+        ( $function:expr, $arr:expr ) => {
+            match $function {
+                ActivationFunction::Perceptron => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::perceptron_derivative($arr[(row, col)]);
+                        }
+                    }
+                    $arr
+                },
+                ActivationFunction::Sigmoid => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::sigmoid_derivative($arr[(row, col)]);
+                        }
+                    }       
+                    $arr         
+                },
+                ActivationFunction::Tanh => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::tanh_derivative($arr[(row, col)]);
+                        }
+                    }    
+                    $arr              
+                },
+                ActivationFunction::ReLU => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::relu_derivative($arr[(row, col)]);
+                        }
+                    }   
+                    $arr               
+                },
+                ActivationFunction::LeakyReLu => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::leaky_relu_derivative($arr[(row, col)]);
+                        }
+                    }      
+                    $arr            
+                },
+                ActivationFunction::Elu => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::elu_derivative($arr[(row, col)]);
+                        }
+                    }
+                    $arr
+                },
+                ActivationFunction::Softmax => {
+                    let mut denominator = 0.0;
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            denominator = $arr[(row, col)].exp();
+                        }
+                    }
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::softmax_derivative($arr[(row, col)], denominator);
+                        }
+                    }
+                    $arr
+                },
+                ActivationFunction::Softplus => {
+                    for row in 0..$arr.size.1 {
+                        for col in 0..$arr.size.0 {
+                            $arr[(row, col)] = ActivationFunction::softplus_derivative($arr[(row, col)]);
+                        }
+                    }    
+                    $arr              
+                },
+            }
+        };
+    }
 
     struct NeuralNetwork {
         input:Array<f64>,
@@ -199,7 +324,7 @@ mod ml {
             output
         }
 
-        fn propagate(&mut self) {
+        fn propagate_forward(&mut self) {
             let mut temp = self.input.clone();
             for i in 0..self.weights.len() {
                 temp = apply!(
@@ -208,6 +333,26 @@ mod ml {
                 );
             }
             self.output = temp;
+        }
+
+        fn propagate_back(&mut self, target:Vec<f64>, learning_rate:f64) {
+            let mut error = self.output.clone();
+            for i in 0..error.size.1 {
+                error[(0, i)] = self.output[(0, i)] - target[i];
+            }
+
+            for i in (0..self.weights.len()).rev() {
+                let delta_weights = error.hadamard_product(derivative!(self.activation_function, self.output.clone()));
+                let weights_gradient = delta_weights.clone().hadamard_product(self.weights[i].transpose());
+
+                self.weights[i] = self.weights[i].clone() - weights_gradient * learning_rate;
+
+                let biases_gradient = delta_weights.clone();
+
+                self.biases[i] = self.biases[i].clone() - biases_gradient * learning_rate;
+
+                error = delta_weights.hadamard_product(self.weights[i].clone());
+            }
         }
     }
 }
