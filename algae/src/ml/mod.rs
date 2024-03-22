@@ -4,7 +4,7 @@ mod ml {
     use crate::array::array::Array;
     
     #[derive(Clone, Copy)]
-    enum ActivationFunction{
+    pub enum ActivationFunction{
         Perceptron,
         Sigmoid,
         Tanh,
@@ -431,19 +431,25 @@ mod ml {
             self.propagate_backwards(target, learning_rate)
         }
 
+        pub fn propagate_only_hidden(&mut self, mut target:Vec<f64>, learning_rate:f64) -> Vec<f64> {
+            let target = {
+                let mut output = self.neural_network.get_output();
+                output.append(&mut target);
+                output
+            };
+            self.propagate_backwards(target, learning_rate)
+        }
+
         // Note that this implementation allows for the target to be larger than the output 
         //      thus also learning the hidden layer. 
         //      This isn't a bug, it's a feature ;)
-        pub fn backward_pass(&mut self, target:Vec<f64>, learning_rate:f64, mut history:Vec<(Vec<f64>, Vec<f64>)>) {
-            let mut error = self.propagate_backwards(target, learning_rate);
-            while let Some((target_out, target_hidden_layer)) = history.pop() {
-                let mut target = target_out;
-                let index = self.neural_network.input.size.1 - self.hidden_layer_size;
-                target.append(&mut error.split_off(index));
-                
-                self.manual_hidden_layer(target_hidden_layer);
-                error = self.neural_network.propagate_backwards(target, learning_rate);
+        pub fn backward_pass(&mut self, target:Vec<f64>, learning_rate:f64, mut history:Vec<Vec<f64>>) {
+            self.propagate_backwards(target, learning_rate);
+            if let Some((target_out)) = history.pop() {
+                self.backward_pass(target_out, learning_rate, history);
             }
-        }
+        }        
     }
 }
+
+mod generall_intelligence;
