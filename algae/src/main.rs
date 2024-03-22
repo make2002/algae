@@ -1,7 +1,7 @@
 use std::env;
 
-mod array;
-mod ml;
+pub mod array;
+pub mod ml;
 mod signal_processing;
 mod util;
 
