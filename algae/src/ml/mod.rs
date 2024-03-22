@@ -1,4 +1,4 @@
-mod ml {
+pub mod ml {
     use std::{error, process::Output};
 
     use crate::array::array::Array;
